@@ -27,8 +27,17 @@ interface RawItem {
 }
 
 interface RawItemFile {
-  item: RawItem[]
+  baseitem?: RawItem[]
+  item?: RawItem[]
   itemGroup?: RawItem[]
+}
+
+// 5etools suffixes type/property codes with the source, e.g. "M|PHB", "2H|PHB".
+// Strip the "|SOURCE" part to get the bare code.
+function bareCode(code?: string): string {
+  if (!code) return ''
+  const pipe = code.indexOf('|')
+  return pipe === -1 ? code : code.slice(0, pipe)
 }
 
 interface RawSpell {
@@ -99,22 +108,20 @@ const PROP_MAP: Record<string, WeaponProperty> = {
   A: 'ammunition',
 }
 
-// Weapon type codes that indicate it's actually a weapon
-const WEAPON_TYPES = new Set(['M', 'R', 'S', 'A', 'GS', 'SC'])
-
 function isWeapon(item: RawItem): boolean {
-  return !!(item.type && WEAPON_TYPES.has(item.type) && item.dmg1)
+  // Any base item that deals damage is treated as a weapon for our purposes.
+  return !!item.dmg1
 }
 
 function mapProperties(raw: string[] = []): WeaponProperty[] {
   return raw
-    .map(p => PROP_MAP[p])
+    .map(p => PROP_MAP[bareCode(p)])
     .filter((p): p is WeaponProperty => Boolean(p))
 }
 
 function mapItem(raw: RawItem): InventoryItem {
   const props = mapProperties(raw.property)
-  const isRanged = raw.type === 'R' || props.includes('ammunition')
+  const isRanged = bareCode(raw.type) === 'R' || props.includes('ammunition')
   if (isRanged && !props.includes('ranged')) props.push('ranged')
 
   return {
@@ -127,7 +134,7 @@ function mapItem(raw: RawItem): InventoryItem {
     notes: raw.source ? `(${raw.source})` : '',
     damageDice: raw.dmg1,
     versatileDice: raw.dmg2,
-    damageType: raw.dmgType ? (DAMAGE_TYPE_MAP[raw.dmgType] ?? raw.dmgType) : '',
+    damageType: raw.dmgType ? (DAMAGE_TYPE_MAP[bareCode(raw.dmgType)] ?? raw.dmgType) : '',
     properties: props,
     proficient: true,
   }
@@ -231,11 +238,11 @@ function mapSpell(raw: RawSpell): Spell {
 // Caching + fetching
 // ---------------------------------------------------------------------------
 
-const BASE = 'https://raw.githubusercontent.com/5etools-mirror-2/5etools-mirror-2/master/data'
+const BASE = 'https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/main/data'
 
 const CACHE_TTL = 1000 * 60 * 60 * 24 // 24 hours
-const WEAPON_CACHE_KEY = 'fiveEtools_weapons_v1'
-const SPELL_CACHE_KEY = 'fiveEtools_spells_v1'
+const WEAPON_CACHE_KEY = 'fiveEtools_weapons_v2'
+const SPELL_CACHE_KEY = 'fiveEtools_spells_v2'
 
 function readCache<T>(key: string): T | null {
   try {
@@ -266,8 +273,9 @@ export async function fetchWeapons(): Promise<InventoryItem[]> {
 
     const res = await fetch(`${BASE}/items-base.json`)
     const json: RawItemFile = await res.json()
-    const all = [...(json.item ?? []), ...(json.itemGroup ?? [])]
+    const all = [...(json.baseitem ?? []), ...(json.item ?? []), ...(json.itemGroup ?? [])]
     const weapons = all.filter(isWeapon).map(mapItem)
+    weapons.sort((a, b) => a.name.localeCompare(b.name))
 
     writeCache(WEAPON_CACHE_KEY, weapons)
     return weapons
