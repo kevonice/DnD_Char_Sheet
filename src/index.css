@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #1a1008;
+  color: #f0e6d3;
+  font-family: 'Georgia', serif;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+input, textarea, select {
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: none;
+}
