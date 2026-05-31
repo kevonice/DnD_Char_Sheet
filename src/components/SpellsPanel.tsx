@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Character, Spell } from '../types'
 import { spellAttackBonus, spellSaveDC, ABILITY_KEYS, ABILITY_LABELS } from '../utils'
 import { v4 as uuid } from '../uuid'
+import { fetchSpells } from '../data/fiveEtools'
+import Autocomplete from './Autocomplete'
 
 interface Props {
   char: Character
@@ -29,6 +31,17 @@ const SPELL_LEVELS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 export default function SpellsPanel({ char, onChange }: Props) {
   const [openSpell, setOpenSpell] = useState<string | null>(null)
   const [openLevel, setOpenLevel] = useState<number | null>(0)
+  const [spellDb, setSpellDb] = useState<Spell[]>([])
+  const [spellDbLoading, setSpellDbLoading] = useState(false)
+  const [searchLevel, setSearchLevel] = useState<number | null>(null)
+
+  useEffect(() => {
+    setSpellDbLoading(true)
+    fetchSpells()
+      .then(setSpellDb)
+      .catch(() => {})
+      .finally(() => setSpellDbLoading(false))
+  }, [])
 
   function updateSpell(id: string, updates: Partial<Spell>) {
     onChange({ spells: char.spells.map(s => s.id === id ? { ...s, ...updates } : s) })
@@ -197,12 +210,35 @@ export default function SpellsPanel({ char, onChange }: Props) {
                     )}
                   </div>
                 ))}
-                <button
-                  onClick={() => onChange({ spells: [...char.spells, blankSpell(lvl)] })}
-                  className="w-full text-xs text-amber-600/50 hover:text-amber-400 border border-dashed border-amber-800/30 rounded py-1 transition-colors"
-                >
-                  + Add {lvl === 0 ? 'cantrip' : `level ${lvl} spell`}
-                </button>
+                {searchLevel === lvl ? (
+                  <Autocomplete
+                    options={spellDb.filter(s => s.level === lvl)}
+                    getLabel={s => s.name}
+                    getSublabel={s => `${s.school}${s.concentration ? ' · C' : ''}`}
+                    loading={spellDbLoading}
+                    placeholder={`Search ${lvl === 0 ? 'cantrips' : `level ${lvl} spells`}…`}
+                    onSelect={s => {
+                      onChange({ spells: [...char.spells, { ...s, id: uuid(), prepared: false }] })
+                      setSearchLevel(null)
+                    }}
+                    className="mt-1"
+                  />
+                ) : (
+                  <div className="flex gap-1 mt-1">
+                    <button
+                      onClick={() => setSearchLevel(lvl)}
+                      className="flex-1 text-xs text-amber-600/50 hover:text-amber-400 border border-dashed border-amber-800/30 rounded py-1 transition-colors"
+                    >
+                      + Search 5e.tools
+                    </button>
+                    <button
+                      onClick={() => onChange({ spells: [...char.spells, blankSpell(lvl)] })}
+                      className="flex-1 text-xs text-amber-600/50 hover:text-amber-400 border border-dashed border-amber-800/30 rounded py-1 transition-colors"
+                    >
+                      + Custom spell
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

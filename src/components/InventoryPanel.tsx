@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { InventoryItem } from '../types'
-import { SRD_WEAPONS, weaponTemplateToItem } from '../weapons'
 import { v4 as uuid } from '../uuid'
+import { fetchWeapons } from '../data/fiveEtools'
+import Autocomplete from './Autocomplete'
 
 interface Props {
   inventory: InventoryItem[]
@@ -32,7 +33,17 @@ const CATEGORY_LABELS: Record<InventoryItem['category'], string> = {
 
 export default function InventoryPanel({ inventory, onChange }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null)
-  const [showWeaponPicker, setShowWeaponPicker] = useState(false)
+  const [weaponDb, setWeaponDb] = useState<InventoryItem[]>([])
+  const [weaponDbLoading, setWeaponDbLoading] = useState(false)
+  const [showWeaponSearch, setShowWeaponSearch] = useState(false)
+
+  useEffect(() => {
+    setWeaponDbLoading(true)
+    fetchWeapons()
+      .then(setWeaponDb)
+      .catch(() => {})
+      .finally(() => setWeaponDbLoading(false))
+  }, [])
 
   function update(id: string, updates: Partial<InventoryItem>) {
     onChange(inventory.map(it => (it.id === id ? { ...it, ...updates } : it)))
@@ -203,36 +214,33 @@ export default function InventoryPanel({ inventory, onChange }: Props) {
 
               {/* Add buttons per category */}
               {cat === 'weapon' ? (
-                <div className="relative">
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => setShowWeaponPicker(!showWeaponPicker)}
-                      className="flex-1 text-xs text-amber-600/60 hover:text-amber-400 border border-dashed border-amber-800/40 rounded py-1 transition-colors"
-                    >
-                      + Add from SRD
-                    </button>
-                    <button
-                      onClick={() => add(blankItem('weapon'))}
-                      className="flex-1 text-xs text-amber-600/60 hover:text-amber-400 border border-dashed border-amber-800/40 rounded py-1 transition-colors"
-                    >
-                      + Custom weapon
-                    </button>
-                  </div>
-                  {showWeaponPicker && (
-                    <div className="absolute z-10 mt-1 w-full max-h-60 overflow-y-auto bg-amber-950 border border-amber-700/50 rounded shadow-xl">
-                      {SRD_WEAPONS.map(w => (
-                        <button
-                          key={w.name}
-                          onClick={() => {
-                            add(weaponTemplateToItem(w, uuid()))
-                            setShowWeaponPicker(false)
-                          }}
-                          className="w-full flex items-center justify-between px-3 py-1.5 text-xs hover:bg-amber-900/60 text-amber-100"
-                        >
-                          <span>{w.name}</span>
-                          <span className="text-amber-500/60">{w.damageDice} {w.damageType}</span>
-                        </button>
-                      ))}
+                <div className="space-y-1">
+                  {showWeaponSearch ? (
+                    <Autocomplete
+                      options={weaponDb}
+                      getLabel={w => w.name}
+                      getSublabel={w => `${w.damageDice ?? ''} ${w.damageType ?? ''}`.trim()}
+                      loading={weaponDbLoading}
+                      placeholder="Search weapons (e.g. Cl…)"
+                      onSelect={w => {
+                        add({ ...w, id: uuid() })
+                        setShowWeaponSearch(false)
+                      }}
+                    />
+                  ) : (
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => setShowWeaponSearch(true)}
+                        className="flex-1 text-xs text-amber-600/60 hover:text-amber-400 border border-dashed border-amber-800/40 rounded py-1 transition-colors"
+                      >
+                        + Search weapons (5e.tools)
+                      </button>
+                      <button
+                        onClick={() => add(blankItem('weapon'))}
+                        className="flex-1 text-xs text-amber-600/60 hover:text-amber-400 border border-dashed border-amber-800/40 rounded py-1 transition-colors"
+                      >
+                        + Custom weapon
+                      </button>
                     </div>
                   )}
                 </div>
@@ -241,7 +249,7 @@ export default function InventoryPanel({ inventory, onChange }: Props) {
                   onClick={() => add(blankItem(cat))}
                   className="w-full text-xs text-amber-600/60 hover:text-amber-400 border border-dashed border-amber-800/40 rounded py-1 transition-colors"
                 >
-                  + Add {cat}
+                  + Add {cat === 'armor' ? 'armor' : 'item'}
                 </button>
               )}
             </div>
