@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react'
 import type { Character, Spell } from '../types'
 import { spellAttackBonus, spellSaveDC, ABILITY_KEYS, ABILITY_LABELS } from '../utils'
 import { v4 as uuid } from '../uuid'
-import { fetchSpells } from '../data/fiveEtools'
+import { fetchSpells, matchesEdition, type Edition } from '../data/fiveEtools'
 import Autocomplete from './Autocomplete'
+import EditionToggle from './EditionToggle'
 
 interface Props {
   char: Character
@@ -34,6 +35,7 @@ export default function SpellsPanel({ char, onChange }: Props) {
   const [spellDb, setSpellDb] = useState<Spell[]>([])
   const [spellDbLoading, setSpellDbLoading] = useState(false)
   const [searchLevel, setSearchLevel] = useState<number | null>(null)
+  const [edition, setEdition] = useState<Edition>('2014')
 
   useEffect(() => {
     setSpellDbLoading(true)
@@ -212,11 +214,14 @@ export default function SpellsPanel({ char, onChange }: Props) {
                 ))}
                 {searchLevel === lvl ? (
                   <Autocomplete
-                    options={spellDb.filter(s => s.level === lvl)}
+                    options={spellDb.filter(s => s.level === lvl && matchesEdition(s.source, edition))}
                     getLabel={s => s.name}
-                    getSublabel={s => `${s.school}${s.concentration ? ' · C' : ''}`}
+                    getSublabel={s =>
+                      `${s.school}${s.concentration ? ' · C' : ''}${s.source ? ` · ${s.source}` : ''}`
+                    }
                     loading={spellDbLoading}
                     placeholder={`Search ${lvl === 0 ? 'cantrips' : `level ${lvl} spells`}…`}
+                    toolbar={<EditionToggle value={edition} onChange={setEdition} />}
                     onSelect={s => {
                       onChange({ spells: [...char.spells, { ...s, id: uuid(), prepared: false }] })
                       setSearchLevel(null)

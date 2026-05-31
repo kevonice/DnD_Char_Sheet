@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import type { InventoryItem } from '../types'
 import { v4 as uuid } from '../uuid'
-import { fetchWeapons } from '../data/fiveEtools'
+import { fetchWeapons, matchesEdition, type Edition } from '../data/fiveEtools'
 import Autocomplete from './Autocomplete'
+import EditionToggle from './EditionToggle'
 
 interface Props {
   inventory: InventoryItem[]
@@ -36,6 +37,7 @@ export default function InventoryPanel({ inventory, onChange }: Props) {
   const [weaponDb, setWeaponDb] = useState<InventoryItem[]>([])
   const [weaponDbLoading, setWeaponDbLoading] = useState(false)
   const [showWeaponSearch, setShowWeaponSearch] = useState(false)
+  const [edition, setEdition] = useState<Edition>('2014')
 
   useEffect(() => {
     setWeaponDbLoading(true)
@@ -217,11 +219,14 @@ export default function InventoryPanel({ inventory, onChange }: Props) {
                 <div className="space-y-1">
                   {showWeaponSearch ? (
                     <Autocomplete
-                      options={weaponDb}
+                      options={weaponDb.filter(w => matchesEdition(w.source, edition))}
                       getLabel={w => w.name}
-                      getSublabel={w => `${w.damageDice ?? ''} ${w.damageType ?? ''}`.trim()}
+                      getSublabel={w =>
+                        `${w.damageDice ?? ''} ${w.damageType ?? ''}${w.source ? ` · ${w.source}` : ''}`.trim()
+                      }
                       loading={weaponDbLoading}
                       placeholder="Search weapons (e.g. Cl…)"
+                      toolbar={<EditionToggle value={edition} onChange={setEdition} />}
                       onSelect={w => {
                         add({ ...w, id: uuid() })
                         setShowWeaponSearch(false)

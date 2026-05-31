@@ -30,6 +30,7 @@ export interface Spell {
   description: string
   prepared: boolean
   concentration: boolean
+  source?: string // 5etools source book code, e.g. "PHB", "XGE", "XPHB"
 }
 
 export interface Currency {
@@ -67,6 +68,7 @@ export interface InventoryItem {
   damageType?: string // e.g. "slashing"
   properties?: WeaponProperty[]
   proficient?: boolean
+  source?: string // 5etools source book code, e.g. "PHB", "XPHB"
 }
 
 export interface AttackEntry {

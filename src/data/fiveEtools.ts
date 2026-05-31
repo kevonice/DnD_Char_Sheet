@@ -40,6 +40,25 @@ function bareCode(code?: string): string {
   return pipe === -1 ? code : code.slice(0, pipe)
 }
 
+// ---------------------------------------------------------------------------
+// Edition classification
+// ---------------------------------------------------------------------------
+
+export type Edition = '2014' | '2024' | 'all'
+
+// 2024 ("One D&D") reprint sources. Everything else is treated as 2014-era.
+const SOURCES_2024 = new Set(['XPHB', 'XDMG', 'XMM'])
+
+export function editionOf(source?: string): '2014' | '2024' {
+  if (source && SOURCES_2024.has(source.toUpperCase())) return '2024'
+  return '2014'
+}
+
+export function matchesEdition(source: string | undefined, edition: Edition): boolean {
+  if (edition === 'all') return true
+  return editionOf(source) === edition
+}
+
 interface RawSpell {
   name: string
   source?: string
@@ -131,12 +150,13 @@ function mapItem(raw: RawItem): InventoryItem {
     weight: raw.weight ?? 0,
     category: 'weapon',
     equipped: false,
-    notes: raw.source ? `(${raw.source})` : '',
+    notes: '',
     damageDice: raw.dmg1,
     versatileDice: raw.dmg2,
     damageType: raw.dmgType ? (DAMAGE_TYPE_MAP[bareCode(raw.dmgType)] ?? raw.dmgType) : '',
     properties: props,
     proficient: true,
+    source: raw.source,
   }
 }
 
@@ -231,6 +251,7 @@ function mapSpell(raw: RawSpell): Spell {
     description: raw.entries ? flattenEntries(raw.entries) : '',
     prepared: false,
     concentration: isConcentration(raw),
+    source: raw.source,
   }
 }
 
@@ -241,8 +262,8 @@ function mapSpell(raw: RawSpell): Spell {
 const BASE = 'https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/main/data'
 
 const CACHE_TTL = 1000 * 60 * 60 * 24 // 24 hours
-const WEAPON_CACHE_KEY = 'fiveEtools_weapons_v2'
-const SPELL_CACHE_KEY = 'fiveEtools_spells_v2'
+const WEAPON_CACHE_KEY = 'fiveEtools_weapons_v3'
+const SPELL_CACHE_KEY = 'fiveEtools_spells_v3'
 
 function readCache<T>(key: string): T | null {
   try {
@@ -283,8 +304,10 @@ export async function fetchWeapons(): Promise<InventoryItem[]> {
   return weaponPromise
 }
 
-// Spell sources to load (PHB + Xanathar's + Tasha's)
-const SPELL_SOURCES = ['spells-phb', 'spells-xge', 'spells-tce']
+// Spell sources to load:
+//   2014 — PHB + Xanathar's + Tasha's
+//   2024 — XPHB (the 2024 Player's Handbook)
+const SPELL_SOURCES = ['spells-phb', 'spells-xge', 'spells-tce', 'spells-xphb']
 
 export async function fetchSpells(): Promise<Spell[]> {
   if (spellPromise) return spellPromise

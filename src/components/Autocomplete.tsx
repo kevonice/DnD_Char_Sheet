@@ -8,6 +8,7 @@ interface Props<T> {
   placeholder?: string
   loading?: boolean
   className?: string
+  toolbar?: React.ReactNode
 }
 
 export default function Autocomplete<T>({
@@ -18,6 +19,7 @@ export default function Autocomplete<T>({
   placeholder = 'Search...',
   loading = false,
   className = '',
+  toolbar,
 }: Props<T>) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
@@ -82,6 +84,7 @@ export default function Autocomplete<T>({
 
   return (
     <div ref={containerRef} className={`relative ${className}`}>
+      {toolbar && <div className="mb-1">{toolbar}</div>}
       <div className="relative">
         <input
           value={query}
