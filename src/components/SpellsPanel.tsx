@@ -20,6 +20,7 @@ function blankSpell(level: number): Spell {
     duration: '',
     description: '',
     prepared: false,
+    concentration: false,
   }
 }
 
@@ -136,6 +137,17 @@ export default function SpellsPanel({ char, onChange }: Props) {
                         className="bg-transparent text-amber-100 text-sm flex-1"
                         placeholder="Spell name"
                       />
+                      <button
+                        title="Concentration"
+                        onClick={() => updateSpell(spell.id, { concentration: !spell.concentration })}
+                        className={`text-[10px] font-bold w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 transition-colors ${
+                          spell.concentration
+                            ? 'bg-purple-500/30 border-purple-400 text-purple-300'
+                            : 'border-amber-700/40 text-amber-700/40 hover:border-amber-500'
+                        }`}
+                      >
+                        C
+                      </button>
                       <input
                         value={spell.school}
                         onChange={e => updateSpell(spell.id, { school: e.target.value })}

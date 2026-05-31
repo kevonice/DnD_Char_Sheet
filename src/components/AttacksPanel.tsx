@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import type { AttackEntry } from '../types'
+import type { DerivedAttack } from '../utils'
 import { v4 as uuid } from '../uuid'
 
 interface Props {
   attacks: AttackEntry[]
+  derived: DerivedAttack[]
   onChange: (attacks: AttackEntry[]) => void
 }
 
@@ -11,7 +13,7 @@ function blankAttack(): AttackEntry {
   return { id: uuid(), name: '', attackBonus: '', damageRoll: '', damageType: '', notes: '' }
 }
 
-export default function AttacksPanel({ attacks, onChange }: Props) {
+export default function AttacksPanel({ attacks, derived, onChange }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null)
 
   function update(id: string, updates: Partial<AttackEntry>) {
@@ -30,6 +32,23 @@ export default function AttacksPanel({ attacks, onChange }: Props) {
         <span>Damage</span>
         <span />
       </div>
+
+      {/* Derived from equipped weapons (read-only) */}
+      {derived.map(atk => (
+        <div
+          key={atk.id}
+          className="grid grid-cols-[1fr_60px_80px_24px] gap-1 p-1 items-center bg-green-950/20 border border-green-800/30 rounded"
+          title="Auto-generated from an equipped weapon"
+        >
+          <span className="text-amber-100 text-xs px-1 truncate flex items-center gap-1">
+            <span className="text-green-400/70 text-[9px]">⚔</span>
+            {atk.name || '(unnamed weapon)'}
+          </span>
+          <span className="text-amber-300 text-xs text-center">{atk.attackBonus}</span>
+          <span className="text-amber-100 text-xs text-center truncate">{atk.damageRoll}</span>
+          <span />
+        </div>
+      ))}
 
       {attacks.map(atk => (
         <div key={atk.id} className="bg-amber-950/30 border border-amber-800/30 rounded">

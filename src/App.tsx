@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { Character, AbilityKey } from './types'
 import { makeDefaultCharacter } from './defaultCharacter'
-import { proficiencyBonus } from './utils'
+import { proficiencyBonus, passivePerception, weaponAttack } from './utils'
 import SectionHeader from './components/SectionHeader'
 import AbilityBlock from './components/AbilityBlock'
 import SkillList from './components/SkillList'
@@ -9,6 +9,9 @@ import SavingThrows from './components/SavingThrows'
 import CombatStats from './components/CombatStats'
 import AttacksPanel from './components/AttacksPanel'
 import SpellsPanel from './components/SpellsPanel'
+import InventoryPanel from './components/InventoryPanel'
+import CurrencyTracker from './components/CurrencyTracker'
+import ConditionsTracker from './components/ConditionsTracker'
 
 const STORAGE_KEY = 'dnd5e_character'
 
@@ -51,6 +54,19 @@ export default function App() {
   }
 
   const pb = proficiencyBonus(char.level)
+
+  // Attacks auto-generated from equipped weapons
+  const derivedAttacks = char.inventory
+    .filter(it => it.category === 'weapon' && it.equipped)
+    .map(it => weaponAttack(it, char))
+
+  function toggleCondition(cond: string) {
+    update({
+      conditions: char.conditions.includes(cond)
+        ? char.conditions.filter(c => c !== cond)
+        : [...char.conditions, cond],
+    })
+  }
 
   return (
     <div className="min-h-screen bg-[#1a1008] text-amber-100">
@@ -177,6 +193,15 @@ export default function App() {
                   }
                 />
               </div>
+
+              <div className="flex items-center justify-between bg-amber-950/40 border border-amber-800/40 rounded-lg px-3 py-2">
+                <span className="text-[10px] uppercase tracking-widest text-amber-600/70 leading-tight">
+                  Passive<br />Perception
+                </span>
+                <span className="text-2xl font-bold text-amber-100">
+                  {passivePerception(char.abilities, char.skills['Perception'], char.level)}
+                </span>
+              </div>
             </div>
 
             {/* Middle column */}
@@ -187,31 +212,56 @@ export default function App() {
               </div>
 
               <div>
-                <SectionHeader title="Attacks" />
-                <AttacksPanel attacks={char.attacks} onChange={attacks => update({ attacks })} />
+                <SectionHeader title="Conditions" />
+                <ConditionsTracker
+                  conditions={char.conditions}
+                  exhaustion={char.exhaustion}
+                  onToggle={toggleCondition}
+                  onExhaustion={lvl => update({ exhaustion: lvl })}
+                />
               </div>
 
               <div>
-                <SectionHeader title="Equipment" />
-                <TextArea label="" value={char.equipment} onChange={v => update({ equipment: v })} rows={6} />
+                <SectionHeader title="Attacks" />
+                <AttacksPanel
+                  attacks={char.attacks}
+                  derived={derivedAttacks}
+                  onChange={attacks => update({ attacks })}
+                />
               </div>
             </div>
 
             {/* Right column */}
             <div className="space-y-4">
               <div>
+                <SectionHeader title="Inventory" />
+                <InventoryPanel
+                  inventory={char.inventory}
+                  onChange={inventory => update({ inventory })}
+                />
+              </div>
+
+              <div>
+                <SectionHeader title="Currency" />
+                <CurrencyTracker
+                  currency={char.currency}
+                  onChange={currency => update({ currency })}
+                />
+              </div>
+
+              <div>
                 <SectionHeader title="Features & Traits" />
-                <TextArea label="" value={char.features} onChange={v => update({ features: v })} rows={8} />
+                <TextArea label="" value={char.features} onChange={v => update({ features: v })} rows={6} />
               </div>
 
               <div>
                 <SectionHeader title="Proficiencies & Languages" />
-                <TextArea label="" value={char.proficiencies} onChange={v => update({ proficiencies: v })} rows={4} />
+                <TextArea label="" value={char.proficiencies} onChange={v => update({ proficiencies: v })} rows={3} />
               </div>
 
               <div>
                 <SectionHeader title="Notes" />
-                <TextArea label="" value={char.notes} onChange={v => update({ notes: v })} rows={5} />
+                <TextArea label="" value={char.notes} onChange={v => update({ notes: v })} rows={4} />
               </div>
             </div>
           </div>

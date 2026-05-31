@@ -47,6 +47,10 @@ export function makeDefaultCharacter(): Character {
     spells: [],
 
     equipment: '',
+    inventory: [],
+    currency: { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 },
+    conditions: [],
+    exhaustion: 0,
     features: '',
     personalityTraits: '',
     ideals: '',

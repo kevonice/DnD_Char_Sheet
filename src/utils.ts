@@ -1,4 +1,4 @@
-import type { AbilityScores, AbilityKey, Character, SkillEntry } from './types'
+import type { AbilityScores, AbilityKey, Character, SkillEntry, InventoryItem } from './types'
 
 export function modifier(score: number): number {
   return Math.floor((score - 10) / 2)
@@ -109,3 +109,71 @@ export const ABILITY_LABELS: Record<AbilityKey, string> = {
 }
 
 export const ABILITY_KEYS: AbilityKey[] = ['str', 'dex', 'con', 'int', 'wis', 'cha']
+
+export function passivePerception(
+  abilities: AbilityScores,
+  perceptionEntry: SkillEntry,
+  level: number
+): number {
+  return 10 + skillBonus('Perception', abilities, perceptionEntry, level)
+}
+
+export const CONDITIONS = [
+  'Blinded',
+  'Charmed',
+  'Deafened',
+  'Frightened',
+  'Grappled',
+  'Incapacitated',
+  'Invisible',
+  'Paralyzed',
+  'Petrified',
+  'Poisoned',
+  'Prone',
+  'Restrained',
+  'Stunned',
+  'Unconscious',
+]
+
+// Derive an attack line from an equipped weapon
+export interface DerivedAttack {
+  id: string
+  name: string
+  attackBonus: string
+  damageRoll: string
+}
+
+export function weaponAttack(item: InventoryItem, char: Character): DerivedAttack {
+  const props = item.properties ?? []
+  const strMod = modifier(char.abilities.str)
+  const dexMod = modifier(char.abilities.dex)
+
+  // Choose ability: ranged uses DEX, finesse uses the better of STR/DEX, else STR
+  let abilityMod: number
+  if (props.includes('ranged')) {
+    abilityMod = dexMod
+  } else if (props.includes('finesse')) {
+    abilityMod = Math.max(strMod, dexMod)
+  } else {
+    abilityMod = strMod
+  }
+
+  const pb = item.proficient ? proficiencyBonus(char.level) : 0
+  const totalBonus = abilityMod + pb
+  const bonusStr = totalBonus >= 0 ? `+${totalBonus}` : `${totalBonus}`
+
+  const dice = item.damageDice ?? ''
+  const dmgModStr = abilityMod === 0 ? '' : abilityMod > 0 ? `+${abilityMod}` : `${abilityMod}`
+  const damageType = item.damageType ? ` ${item.damageType}` : ''
+  const versatile = item.versatileDice
+    ? ` (${item.versatileDice}${dmgModStr} two-handed)`
+    : ''
+  const damageRoll = `${dice}${dmgModStr}${damageType}${versatile}`
+
+  return {
+    id: item.id,
+    name: item.name,
+    attackBonus: bonusStr,
+    damageRoll,
+  }
+}

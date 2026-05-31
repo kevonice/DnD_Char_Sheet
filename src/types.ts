@@ -29,6 +29,44 @@ export interface Spell {
   duration: string
   description: string
   prepared: boolean
+  concentration: boolean
+}
+
+export interface Currency {
+  cp: number
+  sp: number
+  ep: number
+  gp: number
+  pp: number
+}
+
+// Weapon-specific properties used to derive attack rolls
+export type WeaponProperty =
+  | 'finesse'
+  | 'ranged'
+  | 'thrown'
+  | 'versatile'
+  | 'two-handed'
+  | 'light'
+  | 'heavy'
+  | 'reach'
+  | 'loading'
+  | 'ammunition'
+
+export interface InventoryItem {
+  id: string
+  name: string
+  quantity: number
+  weight: number
+  category: 'weapon' | 'armor' | 'gear'
+  equipped: boolean
+  notes: string
+  // weapon-only fields (present when category === 'weapon')
+  damageDice?: string // e.g. "1d8"
+  versatileDice?: string // e.g. "1d10" when wielded two-handed
+  damageType?: string // e.g. "slashing"
+  properties?: WeaponProperty[]
+  proficient?: boolean
 }
 
 export interface AttackEntry {
@@ -85,7 +123,13 @@ export interface Character {
   spells: Spell[]
 
   // Equipment / inventory
-  equipment: string
+  equipment: string // freeform misc notes
+  inventory: InventoryItem[]
+  currency: Currency
+
+  // Conditions
+  conditions: string[] // active condition names
+  exhaustion: number // 0-6
 
   // Features, traits, notes
   features: string
