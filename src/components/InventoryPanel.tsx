@@ -34,6 +34,7 @@ export default function InventoryPanel({ inventory, onChange }: Props) {
 
   const [dbs, setDbs] = useState<Record<Category, InventoryItem[]>>({ weapon: [], armor: [], gear: [], misc: [] })
   const [loading, setLoading] = useState<Record<Category, boolean>>({ weapon: true, armor: true, gear: true, misc: true })
+  const [errors, setErrors] = useState<Partial<Record<Category, string>>>({})
 
   useEffect(() => {
     const loaders: [Category, () => Promise<InventoryItem[]>][] = [
@@ -45,7 +46,7 @@ export default function InventoryPanel({ inventory, onChange }: Props) {
     for (const [cat, fetcher] of loaders) {
       fetcher()
         .then(items => setDbs(prev => ({ ...prev, [cat]: items })))
-        .catch(() => {})
+        .catch(err => setErrors(prev => ({ ...prev, [cat]: String(err?.message ?? err) })))
         .finally(() => setLoading(prev => ({ ...prev, [cat]: false })))
     }
   }, [])
@@ -58,6 +59,13 @@ export default function InventoryPanel({ inventory, onChange }: Props) {
 
   const totalWeight = inventory.reduce((sum, it) => sum + it.weight * it.quantity, 0)
 
+  function clearDataCache() {
+    Object.keys(localStorage)
+      .filter(k => k.startsWith('fiveEtools_'))
+      .forEach(k => localStorage.removeItem(k))
+    window.location.reload()
+  }
+
   return (
     <div className="space-y-4">
       {CATEGORIES.map(cat => {
@@ -69,8 +77,17 @@ export default function InventoryPanel({ inventory, onChange }: Props) {
 
         return (
           <div key={cat}>
-            <div className="text-[10px] uppercase tracking-widest text-amber-600/70 mb-1.5">
-              {meta.label}
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[10px] uppercase tracking-widest text-amber-600/70">
+                {meta.label}
+              </span>
+              <span className="text-[9px] text-amber-700/60">
+                {isLoading
+                  ? 'loading…'
+                  : errors[cat]
+                    ? <span className="text-red-400">⚠ {errors[cat]}</span>
+                    : `${db.length} in db · ${filtered.length} in ${edition}`}
+              </span>
             </div>
 
             <div className="space-y-1">
@@ -242,8 +259,14 @@ export default function InventoryPanel({ inventory, onChange }: Props) {
         )
       })}
 
-      <div className="text-right text-[10px] text-amber-600/50">
-        Total weight: {totalWeight} lb
+      <div className="flex items-center justify-between text-[10px] text-amber-600/50">
+        <button
+          onClick={clearDataCache}
+          className="text-amber-700/50 hover:text-amber-400 underline decoration-dotted"
+        >
+          Reload 5e.tools data
+        </button>
+        <span>Total weight: {totalWeight} lb</span>
       </div>
     </div>
   )
