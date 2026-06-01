@@ -14,7 +14,7 @@ interface RawItem {
   dmg1?: string
   dmg2?: string
   dmgType?: string
-  property?: string[]
+  property?: unknown[]
   range?: string
   entries?: (string | Record<string, unknown>)[]
   ac?: number | { base?: number }
@@ -34,8 +34,8 @@ interface RawItemFile {
 
 // 5etools suffixes type/property codes with the source, e.g. "M|PHB", "2H|PHB".
 // Strip the "|SOURCE" part to get the bare code.
-function bareCode(code?: string): string {
-  if (!code) return ''
+function bareCode(code: unknown): string {
+  if (typeof code !== 'string' || !code) return ''
   const pipe = code.indexOf('|')
   return pipe === -1 ? code : code.slice(0, pipe)
 }
@@ -139,8 +139,9 @@ function categorise(raw: RawItem): InventoryItem['category'] {
   return 'misc'
 }
 
-function mapProperties(raw: string[] = []): WeaponProperty[] {
+function mapProperties(raw: unknown[] = []): WeaponProperty[] {
   return raw
+    .filter((p): p is string => typeof p === 'string')
     .map(p => PROP_MAP[bareCode(p)])
     .filter((p): p is WeaponProperty => Boolean(p))
 }
