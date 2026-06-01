@@ -10,20 +10,20 @@ interface RawItem {
   source?: string
   type?: string        // "M" martial melee, "R" martial ranged, "S" simple, "A" ammo, etc.
   weight?: number
-  value?: number       // in copper pieces
+  value?: number
   dmg1?: string
   dmg2?: string
-  dmgType?: string     // "S" slashing, "P" piercing, "B" bludgeoning
-  property?: string[]  // "F", "L", "H", "T", "V", "2H", "LD", "R", "A"
+  dmgType?: string
+  property?: string[]
   range?: string
   entries?: (string | Record<string, unknown>)[]
+  ac?: number | { base?: number }
+  stealth?: boolean
+  strength?: number
   weaponCategory?: string
   sword?: boolean
   axe?: boolean
   bow?: boolean
-  spear?: boolean
-  polearm?: boolean
-  firearm?: boolean
 }
 
 interface RawItemFile {
@@ -127,9 +127,16 @@ const PROP_MAP: Record<string, WeaponProperty> = {
   A: 'ammunition',
 }
 
-function isWeapon(item: RawItem): boolean {
-  // Any base item that deals damage is treated as a weapon for our purposes.
-  return !!item.dmg1
+const ARMOR_TYPES = new Set(['LA', 'MA', 'HA', 'S'])
+const GEAR_TYPES  = new Set(['G', 'AT', 'INS', 'A', 'SCF', 'TG', 'T', 'MNT', 'VEH', 'GS'])
+const MISC_TYPES  = new Set(['P', 'W', 'SC', 'RG', 'RD', 'WD', 'ST', 'OTH', 'AF', '$A', '$G', 'FD'])
+
+function categorise(raw: RawItem): InventoryItem['category'] {
+  if (raw.dmg1) return 'weapon'
+  const t = bareCode(raw.type ?? '')
+  if (ARMOR_TYPES.has(t)) return 'armor'
+  if (GEAR_TYPES.has(t))  return 'gear'
+  return 'misc'
 }
 
 function mapProperties(raw: string[] = []): WeaponProperty[] {
@@ -139,24 +146,37 @@ function mapProperties(raw: string[] = []): WeaponProperty[] {
 }
 
 function mapItem(raw: RawItem): InventoryItem {
-  const props = mapProperties(raw.property)
-  const isRanged = bareCode(raw.type) === 'R' || props.includes('ammunition')
-  if (isRanged && !props.includes('ranged')) props.push('ranged')
+  const cat = categorise(raw)
 
+  if (cat === 'weapon') {
+    const props = mapProperties(raw.property)
+    const isRanged = bareCode(raw.type ?? '') === 'R' || props.includes('ammunition')
+    if (isRanged && !props.includes('ranged')) props.push('ranged')
+    return {
+      id: uuid(), name: raw.name, quantity: 1, weight: raw.weight ?? 0,
+      category: 'weapon', equipped: false, notes: '',
+      damageDice: raw.dmg1, versatileDice: raw.dmg2,
+      damageType: raw.dmgType ? (DAMAGE_TYPE_MAP[bareCode(raw.dmgType)] ?? raw.dmgType) : '',
+      properties: props, proficient: true, source: raw.source,
+    }
+  }
+
+  if (cat === 'armor') {
+    const acRaw = raw.ac
+    const acNum = typeof acRaw === 'number' ? acRaw : typeof acRaw === 'object' && acRaw !== null ? (acRaw as { base?: number }).base : undefined
+    return {
+      id: uuid(), name: raw.name, quantity: 1, weight: raw.weight ?? 0,
+      category: 'armor', equipped: false,
+      notes: (raw as any).stealth ? 'Stealth disadvantage' : '',
+      armorClass: acNum,
+      source: raw.source,
+    }
+  }
+
+  // gear or misc
   return {
-    id: uuid(),
-    name: raw.name,
-    quantity: 1,
-    weight: raw.weight ?? 0,
-    category: 'weapon',
-    equipped: false,
-    notes: '',
-    damageDice: raw.dmg1,
-    versatileDice: raw.dmg2,
-    damageType: raw.dmgType ? (DAMAGE_TYPE_MAP[bareCode(raw.dmgType)] ?? raw.dmgType) : '',
-    properties: props,
-    proficient: true,
-    source: raw.source,
+    id: uuid(), name: raw.name, quantity: 1, weight: raw.weight ?? 0,
+    category: cat, equipped: false, notes: '', source: raw.source,
   }
 }
 
@@ -262,7 +282,6 @@ function mapSpell(raw: RawSpell): Spell {
 const BASE = 'https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/main/data'
 
 const CACHE_TTL = 1000 * 60 * 60 * 24 // 24 hours
-const WEAPON_CACHE_KEY = 'fiveEtools_weapons_v3'
 const SPELL_CACHE_KEY = 'fiveEtools_spells_v3'
 
 function readCache<T>(key: string): T | null {
@@ -283,25 +302,88 @@ function writeCache(key: string, data: unknown) {
   } catch {}
 }
 
-let weaponPromise: Promise<InventoryItem[]> | null = null
-let spellPromise: Promise<Spell[]> | null = null
+// ---------------------------------------------------------------------------
+// Shared raw-data fetchers (each file fetched and parsed once)
+// ---------------------------------------------------------------------------
 
-export async function fetchWeapons(): Promise<InventoryItem[]> {
-  if (weaponPromise) return weaponPromise
-  weaponPromise = (async () => {
-    const cached = readCache<InventoryItem[]>(WEAPON_CACHE_KEY)
+interface CategorisedItems {
+  weapons: InventoryItem[]
+  armor: InventoryItem[]
+  gear: InventoryItem[]
+  misc: InventoryItem[]
+}
+
+const BASE_ITEMS_KEY  = 'fiveEtools_baseItems_v1'
+const MAGIC_ITEMS_KEY = 'fiveEtools_magicItems_v1'
+
+let baseItemsPromise:  Promise<CategorisedItems> | null = null
+let magicItemsPromise: Promise<InventoryItem[]>  | null = null
+let spellPromise:      Promise<Spell[]>          | null = null
+
+function fetchBaseItems(): Promise<CategorisedItems> {
+  if (baseItemsPromise) return baseItemsPromise
+  baseItemsPromise = (async () => {
+    const cached = readCache<CategorisedItems>(BASE_ITEMS_KEY)
     if (cached) return cached
 
-    const res = await fetch(`${BASE}/items-base.json`)
+    const res  = await fetch(`${BASE}/items-base.json`)
     const json: RawItemFile = await res.json()
-    const all = [...(json.baseitem ?? []), ...(json.item ?? []), ...(json.itemGroup ?? [])]
-    const weapons = all.filter(isWeapon).map(mapItem)
-    weapons.sort((a, b) => a.name.localeCompare(b.name))
+    const all  = [...(json.baseitem ?? []), ...(json.item ?? [])]
 
-    writeCache(WEAPON_CACHE_KEY, weapons)
-    return weapons
+    const result: CategorisedItems = { weapons: [], armor: [], gear: [], misc: [] }
+    for (const raw of all) {
+      const item = mapItem(raw)
+      result[item.category as keyof CategorisedItems].push(item)
+    }
+    for (const arr of Object.values(result)) arr.sort((a: InventoryItem, b: InventoryItem) => a.name.localeCompare(b.name))
+
+    writeCache(BASE_ITEMS_KEY, result)
+    return result
   })()
-  return weaponPromise
+  return baseItemsPromise
+}
+
+function fetchMagicItemsRaw(): Promise<InventoryItem[]> {
+  if (magicItemsPromise) return magicItemsPromise
+  magicItemsPromise = (async () => {
+    const cached = readCache<InventoryItem[]>(MAGIC_ITEMS_KEY)
+    if (cached) return cached
+
+    const res  = await fetch(`${BASE}/items.json`)
+    const json: RawItemFile = await res.json()
+    // Only pull misc-type entries that aren't duplicates of base weapons/armor
+    const items = (json.item ?? [])
+      .filter(raw => {
+        const t = bareCode(raw.type ?? '')
+        return MISC_TYPES.has(t)
+      })
+      .map(raw => mapItem(raw))
+    items.sort((a, b) => a.name.localeCompare(b.name))
+
+    writeCache(MAGIC_ITEMS_KEY, items)
+    return items
+  })()
+  return magicItemsPromise
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+export async function fetchWeapons(): Promise<InventoryItem[]> {
+  return (await fetchBaseItems()).weapons
+}
+
+export async function fetchArmor(): Promise<InventoryItem[]> {
+  return (await fetchBaseItems()).armor
+}
+
+export async function fetchGear(): Promise<InventoryItem[]> {
+  return (await fetchBaseItems()).gear
+}
+
+export async function fetchMiscItems(): Promise<InventoryItem[]> {
+  return fetchMagicItemsRaw()
 }
 
 // Spell sources to load:

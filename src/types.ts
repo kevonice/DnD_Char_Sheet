@@ -59,16 +59,18 @@ export interface InventoryItem {
   name: string
   quantity: number
   weight: number
-  category: 'weapon' | 'armor' | 'gear'
+  category: 'weapon' | 'armor' | 'gear' | 'misc'
   equipped: boolean
   notes: string
-  // weapon-only fields (present when category === 'weapon')
-  damageDice?: string // e.g. "1d8"
-  versatileDice?: string // e.g. "1d10" when wielded two-handed
-  damageType?: string // e.g. "slashing"
+  // weapon-only
+  damageDice?: string
+  versatileDice?: string
+  damageType?: string
   properties?: WeaponProperty[]
   proficient?: boolean
-  source?: string // 5etools source book code, e.g. "PHB", "XPHB"
+  // armor-only
+  armorClass?: number
+  source?: string
 }
 
 export interface AttackEntry {
