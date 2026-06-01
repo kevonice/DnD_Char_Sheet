@@ -307,14 +307,14 @@ function writeCache(key: string, data: unknown) {
 // ---------------------------------------------------------------------------
 
 interface CategorisedItems {
-  weapons: InventoryItem[]
+  weapon: InventoryItem[]
   armor: InventoryItem[]
   gear: InventoryItem[]
   misc: InventoryItem[]
 }
 
-const BASE_ITEMS_KEY  = 'fiveEtools_baseItems_v1'
-const MAGIC_ITEMS_KEY = 'fiveEtools_magicItems_v1'
+const BASE_ITEMS_KEY  = 'fiveEtools_baseItems_v2'
+const MAGIC_ITEMS_KEY = 'fiveEtools_magicItems_v2'
 
 let baseItemsPromise:  Promise<CategorisedItems> | null = null
 let magicItemsPromise: Promise<InventoryItem[]>  | null = null
@@ -330,10 +330,10 @@ function fetchBaseItems(): Promise<CategorisedItems> {
     const json: RawItemFile = await res.json()
     const all  = [...(json.baseitem ?? []), ...(json.item ?? [])]
 
-    const result: CategorisedItems = { weapons: [], armor: [], gear: [], misc: [] }
+    const result: CategorisedItems = { weapon: [], armor: [], gear: [], misc: [] }
     for (const raw of all) {
       const item = mapItem(raw)
-      result[item.category as keyof CategorisedItems].push(item)
+      result[item.category].push(item)
     }
     for (const arr of Object.values(result)) arr.sort((a: InventoryItem, b: InventoryItem) => a.name.localeCompare(b.name))
 
@@ -371,7 +371,7 @@ function fetchMagicItemsRaw(): Promise<InventoryItem[]> {
 // ---------------------------------------------------------------------------
 
 export async function fetchWeapons(): Promise<InventoryItem[]> {
-  return (await fetchBaseItems()).weapons
+  return (await fetchBaseItems()).weapon
 }
 
 export async function fetchArmor(): Promise<InventoryItem[]> {
