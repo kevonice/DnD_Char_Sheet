@@ -284,20 +284,27 @@ const BASE = 'https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/mai
 const CACHE_TTL = 1000 * 60 * 60 * 24 // 24 hours
 const SPELL_CACHE_KEY = 'fiveEtools_spells_v3'
 
-function readCache<T>(key: string): T | null {
+// `isValid` lets each caller reject empty/corrupt payloads so we never serve
+// (or persist) a broken cache — e.g. an empty item list from a failed fetch.
+function readCache<T>(key: string, isValid?: (data: T) => boolean): T | null {
   try {
     const raw = localStorage.getItem(key)
     if (!raw) return null
     const { ts, data } = JSON.parse(raw)
     if (Date.now() - ts > CACHE_TTL) return null
+    if (isValid && !isValid(data as T)) {
+      localStorage.removeItem(key)
+      return null
+    }
     return data as T
   } catch {
     return null
   }
 }
 
-function writeCache(key: string, data: unknown) {
+function writeCache(key: string, data: unknown, isValid?: (data: unknown) => boolean) {
   try {
+    if (isValid && !isValid(data)) return // refuse to cache an invalid payload
     localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data }))
   } catch {}
 }
@@ -313,55 +320,70 @@ interface CategorisedItems {
   misc: InventoryItem[]
 }
 
-const BASE_ITEMS_KEY  = 'fiveEtools_baseItems_v2'
-const MAGIC_ITEMS_KEY = 'fiveEtools_magicItems_v2'
+const BASE_ITEMS_KEY  = 'fiveEtools_baseItems_v3'
+const MAGIC_ITEMS_KEY = 'fiveEtools_magicItems_v3'
 
 let baseItemsPromise:  Promise<CategorisedItems> | null = null
 let magicItemsPromise: Promise<InventoryItem[]>  | null = null
 let spellPromise:      Promise<Spell[]>          | null = null
 
+const hasItems = (d: CategorisedItems) => d.weapon.length > 0
+
 function fetchBaseItems(): Promise<CategorisedItems> {
   if (baseItemsPromise) return baseItemsPromise
   baseItemsPromise = (async () => {
-    const cached = readCache<CategorisedItems>(BASE_ITEMS_KEY)
+    const cached = readCache<CategorisedItems>(BASE_ITEMS_KEY, hasItems)
     if (cached) return cached
 
-    const res  = await fetch(`${BASE}/items-base.json`)
-    const json: RawItemFile = await res.json()
-    const all  = [...(json.baseitem ?? []), ...(json.item ?? [])]
+    try {
+      const res  = await fetch(`${BASE}/items-base.json`)
+      const json: RawItemFile = await res.json()
+      const all  = [...(json.baseitem ?? []), ...(json.item ?? [])]
 
-    const result: CategorisedItems = { weapon: [], armor: [], gear: [], misc: [] }
-    for (const raw of all) {
-      const item = mapItem(raw)
-      result[item.category].push(item)
+      const result: CategorisedItems = { weapon: [], armor: [], gear: [], misc: [] }
+      for (const raw of all) {
+        const item = mapItem(raw)
+        result[item.category].push(item)
+      }
+      for (const arr of Object.values(result)) arr.sort((a: InventoryItem, b: InventoryItem) => a.name.localeCompare(b.name))
+
+      writeCache(BASE_ITEMS_KEY, result, d => hasItems(d as CategorisedItems))
+      return result
+    } catch (err) {
+      // Don't memoise a failure — allow a later retry to succeed.
+      baseItemsPromise = null
+      throw err
     }
-    for (const arr of Object.values(result)) arr.sort((a: InventoryItem, b: InventoryItem) => a.name.localeCompare(b.name))
-
-    writeCache(BASE_ITEMS_KEY, result)
-    return result
   })()
   return baseItemsPromise
 }
 
+const nonEmpty = (d: InventoryItem[]) => d.length > 0
+
 function fetchMagicItemsRaw(): Promise<InventoryItem[]> {
   if (magicItemsPromise) return magicItemsPromise
   magicItemsPromise = (async () => {
-    const cached = readCache<InventoryItem[]>(MAGIC_ITEMS_KEY)
+    const cached = readCache<InventoryItem[]>(MAGIC_ITEMS_KEY, nonEmpty)
     if (cached) return cached
 
-    const res  = await fetch(`${BASE}/items.json`)
-    const json: RawItemFile = await res.json()
-    // Only pull misc-type entries that aren't duplicates of base weapons/armor
-    const items = (json.item ?? [])
-      .filter(raw => {
-        const t = bareCode(raw.type ?? '')
-        return MISC_TYPES.has(t)
-      })
-      .map(raw => mapItem(raw))
-    items.sort((a, b) => a.name.localeCompare(b.name))
+    try {
+      const res  = await fetch(`${BASE}/items.json`)
+      const json: RawItemFile = await res.json()
+      // Only pull misc-type entries that aren't duplicates of base weapons/armor
+      const items = (json.item ?? [])
+        .filter(raw => {
+          const t = bareCode(raw.type ?? '')
+          return MISC_TYPES.has(t)
+        })
+        .map(raw => mapItem(raw))
+      items.sort((a, b) => a.name.localeCompare(b.name))
 
-    writeCache(MAGIC_ITEMS_KEY, items)
-    return items
+      writeCache(MAGIC_ITEMS_KEY, items, d => nonEmpty(d as InventoryItem[]))
+      return items
+    } catch (err) {
+      magicItemsPromise = null
+      throw err
+    }
   })()
   return magicItemsPromise
 }
