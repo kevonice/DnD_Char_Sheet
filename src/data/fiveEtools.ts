@@ -148,6 +148,7 @@ function mapProperties(raw: unknown[] = []): WeaponProperty[] {
 
 function mapItem(raw: RawItem): InventoryItem {
   const cat = categorise(raw)
+  const description = Array.isArray(raw.entries) ? flattenEntries(raw.entries).trim() : ''
 
   if (cat === 'weapon') {
     const props = mapProperties(raw.property)
@@ -155,7 +156,7 @@ function mapItem(raw: RawItem): InventoryItem {
     if (isRanged && !props.includes('ranged')) props.push('ranged')
     return {
       id: uuid(), name: raw.name, quantity: 1, weight: raw.weight ?? 0,
-      category: 'weapon', equipped: false, notes: '',
+      category: 'weapon', equipped: false, notes: '', description,
       damageDice: raw.dmg1, versatileDice: raw.dmg2,
       damageType: raw.dmgType ? (DAMAGE_TYPE_MAP[bareCode(raw.dmgType)] ?? raw.dmgType) : '',
       properties: props, proficient: true, source: raw.source,
@@ -169,6 +170,7 @@ function mapItem(raw: RawItem): InventoryItem {
       id: uuid(), name: raw.name, quantity: 1, weight: raw.weight ?? 0,
       category: 'armor', equipped: false,
       notes: (raw as any).stealth ? 'Stealth disadvantage' : '',
+      description,
       armorClass: acNum,
       source: raw.source,
     }
@@ -177,7 +179,7 @@ function mapItem(raw: RawItem): InventoryItem {
   // gear or misc
   return {
     id: uuid(), name: raw.name, quantity: 1, weight: raw.weight ?? 0,
-    category: cat, equipped: false, notes: '', source: raw.source,
+    category: cat, equipped: false, notes: '', description, source: raw.source,
   }
 }
 
@@ -321,8 +323,8 @@ interface CategorisedItems {
   misc: InventoryItem[]
 }
 
-const BASE_ITEMS_KEY  = 'fiveEtools_baseItems_v3'
-const MAGIC_ITEMS_KEY = 'fiveEtools_magicItems_v3'
+const BASE_ITEMS_KEY  = 'fiveEtools_baseItems_v4'
+const MAGIC_ITEMS_KEY = 'fiveEtools_magicItems_v4'
 
 let baseItemsPromise:  Promise<CategorisedItems> | null = null
 let magicItemsPromise: Promise<InventoryItem[]>  | null = null

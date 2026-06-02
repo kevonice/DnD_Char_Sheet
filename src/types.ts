@@ -62,6 +62,7 @@ export interface InventoryItem {
   category: 'weapon' | 'armor' | 'gear' | 'misc'
   equipped: boolean
   notes: string
+  description?: string
   // weapon-only
   damageDice?: string
   versatileDice?: string

@@ -31,6 +31,7 @@ export default function InventoryPanel({ inventory, onChange }: Props) {
   const [expanded, setExpanded]   = useState<string | null>(null)
   const [searching, setSearching] = useState<Category | null>(null)
   const [edition, setEdition]     = useState<Edition>('2014')
+  const [confirmRemove, setConfirmRemove] = useState<InventoryItem | null>(null)
 
   const [dbs, setDbs] = useState<Record<Category, InventoryItem[]>>({ weapon: [], armor: [], gear: [], misc: [] })
   const [loading, setLoading] = useState<Record<Category, boolean>>({ weapon: true, armor: true, gear: true, misc: true })
@@ -94,6 +95,15 @@ export default function InventoryPanel({ inventory, onChange }: Props) {
               {items.map(item => (
                 <div key={item.id} className="bg-amber-950/30 border border-amber-800/30 rounded">
                   <div className="flex items-center gap-1.5 px-2 py-1">
+                    {/* remove */}
+                    <button
+                      title="Remove item"
+                      onClick={() => setConfirmRemove(item)}
+                      className="text-amber-700/40 hover:text-red-400 text-sm flex-shrink-0 transition-colors"
+                    >
+                      🗑
+                    </button>
+
                     {/* equip toggle */}
                     <button
                       title={item.equipped ? 'Equipped' : 'Not equipped'}
@@ -214,7 +224,17 @@ export default function InventoryPanel({ inventory, onChange }: Props) {
                           />
                         </div>
                       </div>
-                      <button onClick={() => remove(item.id)} className="text-red-500/60 hover:text-red-400 text-xs">
+                      <div>
+                        <span className="text-[9px] uppercase tracking-widest text-amber-600/50 block">Description</span>
+                        <textarea
+                          value={item.description ?? ''}
+                          onChange={e => update(item.id, { description: e.target.value })}
+                          className="bg-transparent text-amber-200/70 text-xs w-full resize-none"
+                          rows={3}
+                          placeholder="Item description…"
+                        />
+                      </div>
+                      <button onClick={() => setConfirmRemove(item)} className="text-red-500/60 hover:text-red-400 text-xs">
                         Remove
                       </button>
                     </div>
@@ -268,6 +288,39 @@ export default function InventoryPanel({ inventory, onChange }: Props) {
         </button>
         <span>Total weight: {totalWeight} lb</span>
       </div>
+
+      {confirmRemove && (
+        <div
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setConfirmRemove(null)}
+        >
+          <div
+            className="bg-[#1e1206] border border-amber-700/50 rounded-lg shadow-2xl p-5 max-w-sm mx-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="text-amber-100 text-sm font-bold mb-2">Remove item?</h3>
+            <p className="text-amber-200/70 text-xs mb-4">
+              Are you sure you want to remove
+              {confirmRemove.name ? <> <span className="text-amber-300 font-medium">{confirmRemove.name}</span></> : ' this item'}?
+              This can't be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmRemove(null)}
+                className="px-3 py-1.5 text-xs rounded border border-amber-800/50 text-amber-300 hover:bg-amber-900/40 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { remove(confirmRemove.id); setConfirmRemove(null) }}
+                className="px-3 py-1.5 text-xs rounded bg-red-700/70 hover:bg-red-600 text-red-50 font-medium transition-colors"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
