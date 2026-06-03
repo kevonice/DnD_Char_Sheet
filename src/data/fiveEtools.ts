@@ -17,6 +17,7 @@ interface RawItem {
   property?: unknown[]
   range?: string
   entries?: (string | Record<string, unknown>)[]
+  additionalEntries?: (string | Record<string, unknown>)[]
   ac?: number | { base?: number }
   stealth?: boolean
   strength?: number
@@ -128,6 +129,21 @@ const PROP_MAP: Record<string, WeaponProperty> = {
   A: 'ammunition',
 }
 
+// Plain-language explanations of weapon properties — 5etools shows these for
+// mundane weapons that otherwise have no description text.
+const PROP_DESC: Record<WeaponProperty, string> = {
+  finesse:      'Finesse: use Strength or Dexterity (your choice) for attack and damage rolls.',
+  light:        'Light: suited to two-weapon fighting.',
+  heavy:        'Heavy: Small creatures have disadvantage on attack rolls with it.',
+  thrown:       'Thrown: can be thrown to make a ranged attack using the same ability modifier.',
+  versatile:    'Versatile: can be used one- or two-handed; two-handed deals the larger die.',
+  'two-handed': 'Two-Handed: requires two hands to wield.',
+  loading:      'Loading: only one attack regardless of the number of attacks you can normally make.',
+  reach:        'Reach: adds 5 feet to your reach for attacks and opportunity attacks.',
+  ammunition:   'Ammunition: requires ammunition to make a ranged attack.',
+  ranged:       'Ranged: a ranged weapon attack using Dexterity.',
+}
+
 const ARMOR_TYPES = new Set(['LA', 'MA', 'HA', 'S'])
 const GEAR_TYPES  = new Set(['G', 'AT', 'INS', 'A', 'SCF', 'TG', 'T', 'MNT', 'VEH', 'GS'])
 
@@ -149,12 +165,27 @@ function mapProperties(raw: unknown[] = []): WeaponProperty[] {
 
 function mapItem(raw: RawItem): InventoryItem {
   const cat = categorise(raw)
-  const description = Array.isArray(raw.entries) ? flattenEntries(raw.entries).trim() : ''
+  // Prefer `entries`, fall back to `additionalEntries` (gear/tools use this).
+  const rawEntries = Array.isArray(raw.entries) ? raw.entries
+    : Array.isArray(raw.additionalEntries) ? raw.additionalEntries
+    : null
+  let description = rawEntries ? flattenEntries(rawEntries).trim() : ''
 
   if (cat === 'weapon') {
     const props = mapProperties(raw.property)
     const isRanged = bareCode(raw.type ?? '') === 'R' || props.includes('ammunition')
     if (isRanged && !props.includes('ranged')) props.push('ranged')
+
+    // Build a useful description: category line + any sourced text + property meanings.
+    const parts: string[] = []
+    const wc = raw.weaponCategory ? `${raw.weaponCategory[0].toUpperCase()}${raw.weaponCategory.slice(1)} weapon` : ''
+    const kind = isRanged ? 'ranged' : 'melee'
+    if (wc) parts.push(`${wc} (${kind}).`)
+    if (description) parts.push(description)
+    const propLines = props.map(p => PROP_DESC[p]).filter(Boolean)
+    if (propLines.length) parts.push('\n' + propLines.join('\n'))
+    description = parts.join('\n').trim()
+
     return {
       id: uuid(), name: raw.name, quantity: 1, weight: raw.weight ?? 0,
       category: 'weapon', equipped: false, notes: '', description,
@@ -335,8 +366,8 @@ interface CategorisedItems {
   misc: InventoryItem[]
 }
 
-const BASE_ITEMS_KEY  = 'fiveEtools_baseItems_v5'
-const MAGIC_ITEMS_KEY = 'fiveEtools_magicItems_v7'
+const BASE_ITEMS_KEY  = 'fiveEtools_baseItems_v6'
+const MAGIC_ITEMS_KEY = 'fiveEtools_magicItems_v8'
 
 let baseItemsPromise:  Promise<CategorisedItems> | null = null
 let magicItemsPromise: Promise<CategorisedItems> | null = null
