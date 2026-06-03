@@ -325,10 +325,10 @@ interface CategorisedItems {
 }
 
 const BASE_ITEMS_KEY  = 'fiveEtools_baseItems_v4'
-const MAGIC_ITEMS_KEY = 'fiveEtools_magicItems_v5'
+const MAGIC_ITEMS_KEY = 'fiveEtools_magicItems_v6'
 
 let baseItemsPromise:  Promise<CategorisedItems> | null = null
-let magicItemsPromise: Promise<InventoryItem[]>  | null = null
+let magicItemsPromise: Promise<CategorisedItems> | null = null
 let spellPromise:      Promise<Spell[]>          | null = null
 
 const hasItems = (d: CategorisedItems) => d.weapon.length > 0
@@ -362,32 +362,35 @@ function fetchBaseItems(): Promise<CategorisedItems> {
   return baseItemsPromise
 }
 
-const nonEmpty = (d: InventoryItem[]) => d.length > 0
+const hasAnyItems = (d: CategorisedItems) =>
+  d.weapon.length + d.armor.length + d.gear.length + d.misc.length > 0
 
-function fetchMagicItemsRaw(): Promise<InventoryItem[]> {
+function fetchMagicItems(): Promise<CategorisedItems> {
   if (magicItemsPromise) return magicItemsPromise
   magicItemsPromise = (async () => {
-    const cached = readCache<InventoryItem[]>(MAGIC_ITEMS_KEY, nonEmpty)
+    const cached = readCache<CategorisedItems>(MAGIC_ITEMS_KEY, hasAnyItems)
     if (cached) return cached
 
     try {
       const res  = await fetch(`${BASE}/items.json`)
       const json: RawItemFile = await res.json()
-      // Keep anything with a rarity (magic items) — this catches items with no type
-      // (Bag of Holding, amulets, etc.) as well as typed magic items.
-      // Exclude plain base weapons/armor that are already in items-base.json.
-      const BASE_WEAPON_ARMOR = new Set(['M', 'R', 'S', 'LA', 'MA', 'HA', 'S'])
-      const items = (json.item ?? [])
-        .filter(raw => {
-          if (!raw.rarity || raw.rarity === 'none' || raw.rarity === 'unknown') return false
-          const t = bareCode(raw.type ?? '')
-          return !BASE_WEAPON_ARMOR.has(t)
-        })
-        .map(raw => ({ ...mapItem(raw), category: 'misc' as const }))
-      items.sort((a, b) => a.name.localeCompare(b.name))
+      // Keep anything with a rarity (= a magic item). Items with no rarity are
+      // mundane and already covered by items-base.json.
+      const result: CategorisedItems = { weapon: [], armor: [], gear: [], misc: [] }
+      for (const raw of (json.item ?? [])) {
+        if (!raw.rarity || raw.rarity === 'none') continue
+        // Magic weapons/armor keep their real category so a +1 Dagger lands in
+        // Weapons and +1 Plate lands in Armor. Magic "gear" (Alchemy Jug etc.)
+        // and typeless wondrous items all go to Items & Magic instead of the
+        // mundane Gear & Tools tab.
+        const item = mapItem(raw)
+        const cat = item.category === 'gear' ? 'misc' : item.category
+        result[cat].push({ ...item, category: cat })
+      }
+      for (const arr of Object.values(result)) arr.sort((a: InventoryItem, b: InventoryItem) => a.name.localeCompare(b.name))
 
-      writeCache(MAGIC_ITEMS_KEY, items, d => nonEmpty(d as InventoryItem[]))
-      return items
+      writeCache(MAGIC_ITEMS_KEY, result, d => hasAnyItems(d as CategorisedItems))
+      return result
     } catch (err) {
       magicItemsPromise = null
       throw err
@@ -400,21 +403,17 @@ function fetchMagicItemsRaw(): Promise<InventoryItem[]> {
 // Public API
 // ---------------------------------------------------------------------------
 
-export async function fetchWeapons(): Promise<InventoryItem[]> {
-  return (await fetchBaseItems()).weapon
+// Combine mundane base items with categorised magic items so each tab shows
+// both — e.g. Weapons lists the Longsword AND the +1 Longsword / Flame Tongue.
+async function fetchCategory(cat: keyof CategorisedItems): Promise<InventoryItem[]> {
+  const [base, magic] = await Promise.all([fetchBaseItems(), fetchMagicItems()])
+  return [...base[cat], ...magic[cat]].sort((a, b) => a.name.localeCompare(b.name))
 }
 
-export async function fetchArmor(): Promise<InventoryItem[]> {
-  return (await fetchBaseItems()).armor
-}
-
-export async function fetchGear(): Promise<InventoryItem[]> {
-  return (await fetchBaseItems()).gear
-}
-
-export async function fetchMiscItems(): Promise<InventoryItem[]> {
-  return fetchMagicItemsRaw()
-}
+export function fetchWeapons():   Promise<InventoryItem[]> { return fetchCategory('weapon') }
+export function fetchArmor():     Promise<InventoryItem[]> { return fetchCategory('armor') }
+export function fetchGear():      Promise<InventoryItem[]> { return fetchCategory('gear') }
+export function fetchMiscItems(): Promise<InventoryItem[]> { return fetchCategory('misc') }
 
 // Spell sources to load:
 //   2014 — PHB + Xanathar's + Tasha's
