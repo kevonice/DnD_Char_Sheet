@@ -146,7 +146,7 @@ export function takeLongRest(char: Character): Partial<Character> {
     deathSaveSuccesses: 0,
     deathSaveFailures: 0,
     spellSlots,
-    activeFeatures: restoreFeatures(char.activeFeatures ?? [], ['short', 'long', 'dawn']),
+    activeFeatures: restoreFeatures(char.activeFeatures ?? [], ['short', 'long']),
   }
 }
 
