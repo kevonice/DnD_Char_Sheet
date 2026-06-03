@@ -142,6 +142,8 @@ export interface Character {
   ideals: string
   bonds: string
   flaws: string
+  backstory: string
+  characterGrowth: string
   notes: string
 
   // Inspiration

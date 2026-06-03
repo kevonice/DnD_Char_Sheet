@@ -56,6 +56,8 @@ export function makeDefaultCharacter(): Character {
     ideals: '',
     bonds: '',
     flaws: '',
+    backstory: '',
+    characterGrowth: '',
     notes: '',
     inspiration: false,
   }

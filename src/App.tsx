@@ -160,7 +160,7 @@ export default function App() {
                   : 'border-transparent text-amber-700/50 hover:text-amber-500/70'
               }`}
             >
-              {tab === 'main' ? 'Character' : tab === 'spells' ? 'Spells' : 'Backstory'}
+              {tab === 'main' ? 'Character' : tab === 'spells' ? 'Spells' : 'Background'}
             </button>
           ))}
         </div>
@@ -294,21 +294,48 @@ export default function App() {
           <SpellsPanel char={char} onChange={update} />
         )}
 
-        {/* ════ BACKSTORY TAB ════ */}
+        {/* ════ BACKGROUND TAB ════ */}
         {activeTab === 'backstory' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
-            <Panel>
-              <TextArea label="Personality Traits" value={char.personalityTraits} onChange={v => update({ personalityTraits: v })} rows={5} />
-            </Panel>
-            <Panel>
-              <TextArea label="Ideals" value={char.ideals} onChange={v => update({ ideals: v })} rows={5} />
-            </Panel>
-            <Panel>
-              <TextArea label="Bonds" value={char.bonds} onChange={v => update({ bonds: v })} rows={5} />
-            </Panel>
-            <Panel>
-              <TextArea label="Flaws" value={char.flaws} onChange={v => update({ flaws: v })} rows={5} />
-            </Panel>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Left: character traits */}
+            <div className="space-y-4">
+              <Panel>
+                <TextArea label="Personality Traits" value={char.personalityTraits} onChange={v => update({ personalityTraits: v })} rows={4} />
+              </Panel>
+              <Panel>
+                <TextArea label="Ideals" value={char.ideals} onChange={v => update({ ideals: v })} rows={4} />
+              </Panel>
+              <Panel>
+                <TextArea label="Bonds" value={char.bonds} onChange={v => update({ bonds: v })} rows={4} />
+              </Panel>
+              <Panel>
+                <TextArea label="Flaws" value={char.flaws} onChange={v => update({ flaws: v })} rows={4} />
+              </Panel>
+            </div>
+
+            {/* Right: backstory + growth */}
+            <div className="space-y-4">
+              <Panel className="flex flex-col">
+                <TextArea
+                  label="Backstory"
+                  value={char.backstory}
+                  onChange={v => update({ backstory: v })}
+                  rows={14}
+                />
+              </Panel>
+              <Panel>
+                <div className="mb-1.5">
+                  <label className="text-[9px] uppercase tracking-widest text-amber-600/60 block">Character Revelations</label>
+                  <p className="text-[9px] text-amber-700/40 mt-0.5">Things your character learns or discovers about themselves over the course of the campaign.</p>
+                </div>
+                <TextArea
+                  label=""
+                  value={char.characterGrowth}
+                  onChange={v => update({ characterGrowth: v })}
+                  rows={7}
+                />
+              </Panel>
+            </div>
           </div>
         )}
       </main>
