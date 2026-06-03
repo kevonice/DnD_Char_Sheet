@@ -163,4 +163,5 @@ export interface Character {
 
   // Inspiration
   inspiration: boolean
+  portrait?: string   // data URL or https URL
 }

@@ -14,6 +14,7 @@ import CurrencyTracker from './components/CurrencyTracker'
 import ConditionsTracker from './components/ConditionsTracker'
 import CharacterCreator from './components/CharacterCreator'
 import FeaturesPanel from './components/FeaturesPanel'
+import PortraitUploader from './components/PortraitUploader'
 
 const STORAGE_KEY    = 'dnd5e_character'
 const CREATED_KEY    = 'dnd5e_created'   // flag: has user completed wizard or chosen manual?
@@ -101,6 +102,34 @@ export default function App() {
     })
   }
 
+  function exportCharacter() {
+    const blob = new Blob([JSON.stringify(char, null, 2)], { type: 'application/json' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = `${char.name || 'character'}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function importCharacter(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev => {
+      try {
+        const parsed = JSON.parse(ev.target?.result as string)
+        setChar({ ...makeDefaultCharacter(), ...parsed })
+        localStorage.setItem(CREATED_KEY, '1')
+        setShowCreator(false)
+      } catch {
+        alert('Could not read that file — make sure it\'s a valid character JSON.')
+      }
+    }
+    reader.readAsText(file)
+    e.target.value = ''   // reset so same file can be re-imported
+  }
+
   if (showCreator) {
     return <CharacterCreator onComplete={handleCreatorComplete} onManual={handleManual} />
   }
@@ -112,13 +141,20 @@ export default function App() {
       <header className="border-b border-amber-800/40 bg-gradient-to-b from-amber-950/80 to-amber-950/40 px-6 py-4">
         <div className="max-w-[1400px] mx-auto space-y-2">
           {/* Character name row */}
-          <div className="flex items-end gap-4">
-            <input
-              value={char.name}
-              onChange={e => update({ name: e.target.value })}
-              placeholder="Character Name"
-              className="bg-transparent text-3xl font-bold text-amber-100 placeholder-amber-800/50 focus:outline-none border-b-2 border-amber-700/40 focus:border-amber-500/70 flex-1 min-w-0 pb-0.5 transition-colors"
+          <div className="flex items-center gap-4">
+            <PortraitUploader
+              portrait={char.portrait}
+              characterName={char.name}
+              onChange={portrait => update({ portrait })}
             />
+            <div className="flex-1 min-w-0">
+              <input
+                value={char.name}
+                onChange={e => update({ name: e.target.value })}
+                placeholder="Character Name"
+                className="bg-transparent text-3xl font-bold text-amber-100 placeholder-amber-800/50 focus:outline-none border-b-2 border-amber-700/40 focus:border-amber-500/70 w-full pb-0.5 transition-colors"
+              />
+            </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <button
                 onClick={() => update({ inspiration: !char.inspiration })}
@@ -131,6 +167,22 @@ export default function App() {
               >
                 ★ Inspiration
               </button>
+              {/* Export */}
+              <button
+                onClick={exportCharacter}
+                title="Export character as JSON"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-900/50 text-amber-700/40 hover:border-amber-700/50 hover:text-amber-500 text-xs font-bold uppercase tracking-widest transition-colors"
+              >
+                ↓ Export
+              </button>
+              {/* Import */}
+              <label
+                title="Import character from JSON"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-900/50 text-amber-700/40 hover:border-amber-700/50 hover:text-amber-500 text-xs font-bold uppercase tracking-widest transition-colors cursor-pointer"
+              >
+                ↑ Import
+                <input type="file" accept=".json,application/json" className="hidden" onChange={importCharacter} />
+              </label>
               <button
                 onClick={startNewCharacter}
                 title="New character"
