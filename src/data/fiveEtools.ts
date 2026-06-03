@@ -24,6 +24,7 @@ interface RawItem {
   sword?: boolean
   axe?: boolean
   bow?: boolean
+  rarity?: string
 }
 
 interface RawItemFile {
@@ -129,7 +130,7 @@ const PROP_MAP: Record<string, WeaponProperty> = {
 
 const ARMOR_TYPES = new Set(['LA', 'MA', 'HA', 'S'])
 const GEAR_TYPES  = new Set(['G', 'AT', 'INS', 'A', 'SCF', 'TG', 'T', 'MNT', 'VEH', 'GS'])
-const MISC_TYPES  = new Set(['P', 'W', 'SC', 'RG', 'RD', 'WD', 'ST', 'OTH', 'AF', '$A', '$G', 'FD'])
+
 
 function categorise(raw: RawItem): InventoryItem['category'] {
   if (raw.dmg1) return 'weapon'
@@ -324,7 +325,7 @@ interface CategorisedItems {
 }
 
 const BASE_ITEMS_KEY  = 'fiveEtools_baseItems_v4'
-const MAGIC_ITEMS_KEY = 'fiveEtools_magicItems_v4'
+const MAGIC_ITEMS_KEY = 'fiveEtools_magicItems_v5'
 
 let baseItemsPromise:  Promise<CategorisedItems> | null = null
 let magicItemsPromise: Promise<InventoryItem[]>  | null = null
@@ -372,13 +373,17 @@ function fetchMagicItemsRaw(): Promise<InventoryItem[]> {
     try {
       const res  = await fetch(`${BASE}/items.json`)
       const json: RawItemFile = await res.json()
-      // Only pull misc-type entries that aren't duplicates of base weapons/armor
+      // Keep anything with a rarity (magic items) — this catches items with no type
+      // (Bag of Holding, amulets, etc.) as well as typed magic items.
+      // Exclude plain base weapons/armor that are already in items-base.json.
+      const BASE_WEAPON_ARMOR = new Set(['M', 'R', 'S', 'LA', 'MA', 'HA', 'S'])
       const items = (json.item ?? [])
         .filter(raw => {
+          if (!raw.rarity || raw.rarity === 'none' || raw.rarity === 'unknown') return false
           const t = bareCode(raw.type ?? '')
-          return MISC_TYPES.has(t)
+          return !BASE_WEAPON_ARMOR.has(t)
         })
-        .map(raw => mapItem(raw))
+        .map(raw => ({ ...mapItem(raw), category: 'misc' as const }))
       items.sort((a, b) => a.name.localeCompare(b.name))
 
       writeCache(MAGIC_ITEMS_KEY, items, d => nonEmpty(d as InventoryItem[]))
