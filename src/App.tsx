@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { Character, AbilityKey } from './types'
 import { makeDefaultCharacter } from './defaultCharacter'
-import { proficiencyBonus, passivePerception, weaponAttack } from './utils'
+import { proficiencyBonus, passivePerception, weaponAttack, takeShortRest, takeLongRest } from './utils'
 import SectionHeader from './components/SectionHeader'
 import AbilityBlock from './components/AbilityBlock'
 import SkillList from './components/SkillList'
@@ -268,6 +268,26 @@ export default function App() {
                 <SectionHeader title="Combat" />
                 <CombatStats char={char} onChange={update} />
               </Panel>
+
+              {/* ─ Rest buttons ─ */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => update(takeShortRest(char))}
+                  className="flex-1 py-1.5 rounded-lg border border-amber-800/40 text-amber-400/70 hover:bg-amber-900/30 hover:border-amber-600/50 hover:text-amber-300 text-xs font-bold uppercase tracking-widest transition-colors"
+                >
+                  ⏾ Short Rest
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm('Take a long rest? This will restore HP, spell slots, and all long-rest features.')) {
+                      update(takeLongRest(char))
+                    }
+                  }}
+                  className="flex-1 py-1.5 rounded-lg border border-amber-800/40 text-amber-400/70 hover:bg-amber-900/30 hover:border-amber-600/50 hover:text-amber-300 text-xs font-bold uppercase tracking-widest transition-colors"
+                >
+                  ☽ Long Rest
+                </button>
+              </div>
 
               <Panel>
                 <SectionHeader title="Conditions" />

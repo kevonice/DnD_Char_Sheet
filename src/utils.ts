@@ -1,4 +1,4 @@
-import type { AbilityScores, AbilityKey, Character, SkillEntry, InventoryItem } from './types'
+import type { AbilityScores, AbilityKey, Character, SkillEntry, InventoryItem, ActiveFeature } from './types'
 
 export function modifier(score: number): number {
   return Math.floor((score - 10) / 2)
@@ -118,6 +118,38 @@ export function passivePerception(
   return 10 + skillBonus('Perception', abilities, perceptionEntry, level)
 }
 
+// ---------------------------------------------------------------------------
+// Rest helpers
+// ---------------------------------------------------------------------------
+
+function restoreFeatures(features: ActiveFeature[], types: ActiveFeature['recharge'][]): ActiveFeature[] {
+  return features.map(f =>
+    types.includes(f.recharge) ? { ...f, usesLeft: f.maxUses } : f
+  )
+}
+
+export function takeShortRest(char: Character): Partial<Character> {
+  return {
+    activeFeatures: restoreFeatures(char.activeFeatures ?? [], ['short']),
+  }
+}
+
+export function takeLongRest(char: Character): Partial<Character> {
+  // Restore all spell slots
+  const spellSlots = Object.fromEntries(
+    Object.entries(char.spellSlots).map(([lvl, slot]) => [lvl, { ...slot, used: 0 }])
+  ) as Character['spellSlots']
+
+  return {
+    currentHp: char.maxHp,
+    tempHp: 0,
+    deathSaveSuccesses: 0,
+    deathSaveFailures: 0,
+    spellSlots,
+    activeFeatures: restoreFeatures(char.activeFeatures ?? [], ['short', 'long', 'dawn']),
+  }
+}
+
 export const CONDITIONS = [
   'Blinded',
   'Charmed',
@@ -134,6 +166,71 @@ export const CONDITIONS = [
   'Stunned',
   'Unconscious',
 ]
+
+export const CONDITION_DESC: Record<string, string[]> = {
+  Blinded: [
+    'Automatically fails any ability check requiring sight.',
+    'Attack rolls against you have advantage; your attack rolls have disadvantage.',
+  ],
+  Charmed: [
+    'Cannot attack the charmer or target them with harmful abilities or effects.',
+    'The charmer has advantage on social ability checks against you.',
+  ],
+  Deafened: [
+    'Cannot hear.',
+    'Automatically fails any ability check requiring hearing.',
+  ],
+  Frightened: [
+    'Disadvantage on ability checks and attack rolls while the source of fear is within line of sight.',
+    'Cannot willingly move closer to the source of fear.',
+  ],
+  Grappled: [
+    'Speed becomes 0 and cannot benefit from any bonus to speed.',
+    'Ends if the grappler is incapacitated, or if you are moved outside the grappler\'s reach.',
+  ],
+  Incapacitated: [
+    'Cannot take actions or reactions.',
+  ],
+  Invisible: [
+    'Cannot be seen without magic or a special sense.',
+    'Considered heavily obscured for hiding.',
+    'Attack rolls against you have disadvantage; your attack rolls have advantage.',
+  ],
+  Paralyzed: [
+    'Incapacitated and cannot move or speak.',
+    'Automatically fails Strength and Dexterity saving throws.',
+    'Attack rolls against you have advantage. Any attack that hits from within 5 ft is a critical hit.',
+  ],
+  Petrified: [
+    'Transformed into solid inanimate matter. Incapacitated, cannot move or speak.',
+    'Attack rolls against you have advantage.',
+    'Automatically fails Strength and Dexterity saving throws.',
+    'Resistance to all damage. Immune to poison and disease (existing effects suspended).',
+  ],
+  Poisoned: [
+    'Disadvantage on attack rolls and ability checks.',
+  ],
+  Prone: [
+    'Only movement option is to crawl, unless you stand up (costs half movement).',
+    'Disadvantage on attack rolls.',
+    'Melee attack rolls against you have advantage; ranged attack rolls have disadvantage.',
+  ],
+  Restrained: [
+    'Speed becomes 0 and cannot benefit from any bonus to speed.',
+    'Attack rolls against you have advantage; your attack rolls have disadvantage.',
+    'Disadvantage on Dexterity saving throws.',
+  ],
+  Stunned: [
+    'Incapacitated, cannot move, can speak only falteringly.',
+    'Automatically fails Strength and Dexterity saving throws.',
+    'Attack rolls against you have advantage.',
+  ],
+  Unconscious: [
+    'Incapacitated, cannot move or speak, unaware of surroundings. Drops held items. Falls prone.',
+    'Automatically fails Strength and Dexterity saving throws.',
+    'Attack rolls against you have advantage. Any attack that hits from within 5 ft is a critical hit.',
+  ],
+}
 
 // Derive an attack line from an equipped weapon
 export interface DerivedAttack {

@@ -184,18 +184,29 @@ function mapItem(raw: RawItem): InventoryItem {
   }
 }
 
+// Strip 5etools inline tags: {@skill Stealth} → "Stealth", {@dc 15} → "DC 15"
+function stripTags(text: string): string {
+  return text
+    .replace(/\{@dc\s+(\d+)\}/gi, 'DC $1')
+    .replace(/\{@hit\s+([+-]?\d+)\}/gi, '$1')
+    .replace(/\{@damage\s+([^}]+)\}/gi, '$1')
+    .replace(/\{@dice\s+([^}]+)\}/gi, '$1')
+    .replace(/\{@(\w+)\s+([^|}]+)[^}]*\}/g, '$2')
+    .replace(/\{@(\w+)\}/g, '')
+}
+
 // Flatten 5etools entries (nested objects/strings) to plain text
 function flattenEntries(entries: unknown[], depth = 0): string {
   if (depth > 4) return ''
   return entries
     .map(e => {
-      if (typeof e === 'string') return e
+      if (typeof e === 'string') return stripTags(e)
       if (typeof e === 'object' && e !== null) {
         const obj = e as Record<string, unknown>
         const parts: string[] = []
-        if (typeof obj.name === 'string') parts.push(obj.name + ':')
+        if (typeof obj.name === 'string') parts.push(stripTags(obj.name) + ':')
         if (Array.isArray(obj.entries)) parts.push(flattenEntries(obj.entries, depth + 1))
-        if (Array.isArray(obj.items)) parts.push(flattenEntries(obj.items, depth + 1))
+        if (Array.isArray(obj.items))   parts.push(flattenEntries(obj.items,   depth + 1))
         return parts.join(' ')
       }
       return ''
@@ -286,7 +297,7 @@ function mapSpell(raw: RawSpell): Spell {
 const BASE = 'https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/main/data'
 
 const CACHE_TTL = 1000 * 60 * 60 * 24 // 24 hours
-const SPELL_CACHE_KEY = 'fiveEtools_spells_v3'
+const SPELL_CACHE_KEY = 'fiveEtools_spells_v4'
 
 // `isValid` lets each caller reject empty/corrupt payloads so we never serve
 // (or persist) a broken cache — e.g. an empty item list from a failed fetch.
@@ -324,8 +335,8 @@ interface CategorisedItems {
   misc: InventoryItem[]
 }
 
-const BASE_ITEMS_KEY  = 'fiveEtools_baseItems_v4'
-const MAGIC_ITEMS_KEY = 'fiveEtools_magicItems_v6'
+const BASE_ITEMS_KEY  = 'fiveEtools_baseItems_v5'
+const MAGIC_ITEMS_KEY = 'fiveEtools_magicItems_v7'
 
 let baseItemsPromise:  Promise<CategorisedItems> | null = null
 let magicItemsPromise: Promise<CategorisedItems> | null = null

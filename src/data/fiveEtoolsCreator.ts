@@ -47,7 +47,13 @@ export interface CreatorRace {
 }
 
 function stripTags(text: string): string {
-  return text.replace(/\{@\w+ ([^|}]+)[^}]*\}/g, '$1')
+  return text
+    .replace(/\{@dc\s+(\d+)\}/gi, 'DC $1')
+    .replace(/\{@hit\s+([+-]?\d+)\}/gi, '$1')
+    .replace(/\{@damage\s+([^}]+)\}/gi, '$1')
+    .replace(/\{@dice\s+([^}]+)\}/gi, '$1')
+    .replace(/\{@(\w+)\s+([^|}]+)[^}]*\}/g, '$2')
+    .replace(/\{@(\w+)\}/g, '')
 }
 
 function flattenEntries(entries: unknown[], depth = 0): string {
