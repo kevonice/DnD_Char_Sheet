@@ -13,6 +13,7 @@ import InventoryPanel from './components/InventoryPanel'
 import CurrencyTracker from './components/CurrencyTracker'
 import ConditionsTracker from './components/ConditionsTracker'
 import CharacterCreator from './components/CharacterCreator'
+import FeaturesPanel from './components/FeaturesPanel'
 
 const STORAGE_KEY    = 'dnd5e_character'
 const CREATED_KEY    = 'dnd5e_created'   // flag: has user completed wizard or chosen manual?
@@ -310,7 +311,14 @@ export default function App() {
 
               <Panel>
                 <SectionHeader title="Features & Traits" />
-                <TextArea label="" value={char.features} onChange={v => update({ features: v })} rows={6} />
+                <FeaturesPanel
+                  activeFeatures={char.activeFeatures ?? []}
+                  passiveTraits={char.features}
+                  backgroundFlavour={char.backgroundFlavour ?? ''}
+                  onActiveChange={activeFeatures => update({ activeFeatures })}
+                  onPassiveChange={features => update({ features })}
+                  onBackgroundChange={backgroundFlavour => update({ backgroundFlavour })}
+                />
               </Panel>
 
               <Panel>

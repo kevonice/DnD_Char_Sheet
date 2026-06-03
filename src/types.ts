@@ -74,6 +74,19 @@ export interface InventoryItem {
   source?: string
 }
 
+export type ActionType = 'action' | 'bonus' | 'reaction' | 'special'
+export type RechargeType = 'atwill' | 'short' | 'long' | 'dawn'
+
+export interface ActiveFeature {
+  id: string
+  name: string
+  actionType: ActionType
+  maxUses: number      // 0 = at will
+  usesLeft: number
+  recharge: RechargeType
+  description: string
+}
+
 export interface AttackEntry {
   id: string
   name: string
@@ -137,7 +150,9 @@ export interface Character {
   exhaustion: number // 0-6
 
   // Features, traits, notes
-  features: string
+  activeFeatures: ActiveFeature[]
+  features: string        // passive traits
+  backgroundFlavour: string
   personalityTraits: string
   ideals: string
   bonds: string
