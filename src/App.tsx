@@ -15,7 +15,7 @@ import ConditionsTracker from './components/ConditionsTracker'
 import CharacterCreator from './components/CharacterCreator'
 import FeaturesPanel from './components/FeaturesPanel'
 import PortraitUploader from './components/PortraitUploader'
-import { themeForClass } from './data/classThemes'
+import { themeForClass, themeVars, DEFAULT_THEME } from './data/classThemes'
 
 const STORAGE_KEY    = 'dnd5e_character'
 const CREATED_KEY    = 'dnd5e_created'   // flag: has user completed wizard or chosen manual?
@@ -137,7 +137,15 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#130e06] text-amber-100 font-sans">
+    <div
+      className="min-h-screen text-amber-100 font-sans"
+      style={{
+        ...themeVars(theme),
+        backgroundColor: theme === DEFAULT_THEME
+          ? '#130e06'
+          : `oklch(15% ${(0.04 * theme.chroma).toFixed(3)} ${theme.hue})`,
+      }}
+    >
 
       {/* ── Banner header ── */}
       <header
