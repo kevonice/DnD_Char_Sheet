@@ -10,6 +10,65 @@ interface Props {
   onChange: (inventory: InventoryItem[]) => void
 }
 
+// Renders 5etools description as formatted paragraphs with an Edit toggle
+function DescriptionBlock({ text, onEdit }: { text: string; onEdit: (t: string) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(text)
+
+  if (editing) {
+    return (
+      <div className="space-y-1.5">
+        <textarea
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          className="bg-amber-950/30 border border-amber-700/40 rounded-lg px-2.5 py-2 text-xs text-amber-200/80 w-full resize-none focus:outline-none focus:border-amber-600/50"
+          rows={5}
+          autoFocus
+        />
+        <div className="flex gap-2">
+          <button onClick={() => { onEdit(draft); setEditing(false) }}
+            className="text-[10px] px-2 py-0.5 bg-amber-700/40 hover:bg-amber-600/50 rounded text-amber-200 transition-colors">
+            Save
+          </button>
+          <button onClick={() => { setDraft(text); setEditing(false) }}
+            className="text-[10px] text-amber-700/50 hover:text-amber-500">
+            Cancel
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Split on double-newline for paragraph breaks, single newline for line breaks
+  const paragraphs = text.split(/\n{2,}/).map(p => p.trim()).filter(Boolean)
+
+  return (
+    <div className="group relative">
+      <div className="bg-amber-950/30 border border-amber-800/20 rounded-lg px-2.5 py-2 space-y-1.5 max-h-40 overflow-y-auto">
+        {paragraphs.map((para, i) => {
+          // Detect "Label: content" lines (from flattenEntries name: prefix)
+          const labelMatch = para.match(/^([^:]{1,30}):\s*(.+)$/s)
+          if (labelMatch) {
+            return (
+              <div key={i}>
+                <span className="text-[9px] uppercase tracking-wider text-amber-500/70 font-bold">{labelMatch[1]}</span>
+                <p className="text-[11px] text-amber-200/70 leading-relaxed mt-0.5">{labelMatch[2]}</p>
+              </div>
+            )
+          }
+          return <p key={i} className="text-[11px] text-amber-200/70 leading-relaxed">{para}</p>
+        })}
+      </div>
+      <button
+        onClick={() => { setDraft(text); setEditing(true) }}
+        className="absolute top-1.5 right-1.5 text-[9px] text-amber-700/40 hover:text-amber-500 opacity-0 group-hover:opacity-100 transition-opacity"
+      >
+        edit
+      </button>
+    </div>
+  )
+}
+
 type Category = InventoryItem['category']
 
 const CATEGORY_META: Record<Category, { label: string; addLabel: string }> = {
@@ -151,27 +210,31 @@ export default function InventoryPanel({ inventory, onChange }: Props) {
                   </div>
 
                   {expanded === item.id && (
-                    <div className="border-t border-amber-800/20 p-2 space-y-2">
+                    <div className="border-t border-amber-800/20 p-2.5 space-y-3">
+
+                      {/* ── Category-specific stats row ── */}
                       {cat === 'weapon' && (
-                        <>
+                        <div className="space-y-2">
                           <div className="grid grid-cols-3 gap-2">
-                            {(['damageDice','versatileDice','damageType'] as const).map(field => (
-                              <div key={field}>
-                                <span className="text-[9px] uppercase tracking-widest text-amber-600/50 block">
-                                  {field === 'damageDice' ? 'Damage' : field === 'versatileDice' ? 'Versatile' : 'Type'}
-                                </span>
+                            {([
+                              { field: 'damageDice',    label: 'Damage',    placeholder: '1d8' },
+                              { field: 'versatileDice', label: 'Versatile', placeholder: '1d10' },
+                              { field: 'damageType',    label: 'Dmg Type',  placeholder: 'slashing' },
+                            ] as const).map(({ field, label, placeholder }) => (
+                              <div key={field} className="bg-amber-950/40 rounded-lg px-2 py-1.5">
+                                <span className="text-[8px] uppercase tracking-widest text-amber-600/50 block mb-0.5">{label}</span>
                                 <input
                                   value={(item as any)[field] ?? ''}
                                   onChange={e => update(item.id, { [field]: e.target.value })}
-                                  className="bg-transparent text-amber-200/80 text-xs w-full"
-                                  placeholder={field === 'damageDice' ? '1d8' : field === 'versatileDice' ? '1d10' : 'slashing'}
+                                  className="bg-transparent text-amber-200 text-xs w-full focus:outline-none"
+                                  placeholder={placeholder}
                                 />
                               </div>
                             ))}
                           </div>
-                          <div className="flex items-center gap-3 text-xs">
+                          <div className="flex items-center gap-4 text-xs px-0.5">
                             {(['proficient','finesse','ranged'] as const).map(prop => (
-                              <label key={prop} className="flex items-center gap-1 text-amber-300 capitalize">
+                              <label key={prop} className="flex items-center gap-1.5 text-amber-400/80 capitalize cursor-pointer">
                                 <input
                                   type="checkbox"
                                   checked={prop === 'proficient' ? (item.proficient ?? false) : (item.properties?.includes(prop as any) ?? false)}
@@ -184,56 +247,72 @@ export default function InventoryPanel({ inventory, onChange }: Props) {
                                       update(item.id, { properties: [...set] })
                                     }
                                   }}
+                                  className="accent-amber-500"
                                 />
                                 {prop}
                               </label>
                             ))}
                           </div>
-                        </>
+                        </div>
                       )}
+
                       {cat === 'armor' && (
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <span className="text-[9px] uppercase tracking-widest text-amber-600/50 block">Base AC</span>
+                        <div className="flex gap-2">
+                          <div className="bg-amber-950/40 rounded-lg px-2 py-1.5 w-24">
+                            <span className="text-[8px] uppercase tracking-widest text-amber-600/50 block mb-0.5">Base AC</span>
                             <input
                               type="number"
                               value={item.armorClass ?? ''}
                               onChange={e => update(item.id, { armorClass: Number(e.target.value) })}
-                              className="bg-transparent text-amber-200/80 text-xs w-full"
+                              className="bg-transparent text-amber-200 text-xs w-full focus:outline-none"
                               placeholder="11"
                             />
                           </div>
                         </div>
                       )}
+
+                      {/* ── Weight + Notes ── */}
                       <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <span className="text-[9px] uppercase tracking-widest text-amber-600/50 block">Weight (ea)</span>
+                        <div className="bg-amber-950/40 rounded-lg px-2 py-1.5">
+                          <span className="text-[8px] uppercase tracking-widest text-amber-600/50 block mb-0.5">Weight (ea)</span>
                           <input
                             type="number"
                             value={item.weight}
                             onChange={e => update(item.id, { weight: Number(e.target.value) })}
-                            className="bg-transparent text-amber-200/80 text-xs w-full"
+                            className="bg-transparent text-amber-200 text-xs w-full focus:outline-none"
                           />
                         </div>
-                        <div>
-                          <span className="text-[9px] uppercase tracking-widest text-amber-600/50 block">Notes</span>
+                        <div className="bg-amber-950/40 rounded-lg px-2 py-1.5">
+                          <span className="text-[8px] uppercase tracking-widest text-amber-600/50 block mb-0.5">Notes</span>
                           <input
                             value={item.notes}
                             onChange={e => update(item.id, { notes: e.target.value })}
-                            className="bg-transparent text-amber-200/80 text-xs w-full"
+                            className="bg-transparent text-amber-200 text-xs w-full focus:outline-none"
+                            placeholder="e.g. cursed, silvered…"
                           />
                         </div>
                       </div>
+
+                      {/* ── Description ── */}
                       <div>
-                        <span className="text-[9px] uppercase tracking-widest text-amber-600/50 block">Description</span>
-                        <textarea
-                          value={item.description ?? ''}
-                          onChange={e => update(item.id, { description: e.target.value })}
-                          className="bg-transparent text-amber-200/70 text-xs w-full resize-none"
-                          rows={3}
-                          placeholder="Item description…"
-                        />
+                        <span className="text-[8px] uppercase tracking-widest text-amber-600/50 block mb-1">Description</span>
+                        {item.description && !item.description.startsWith('_edited_') ? (
+                          // 5etools-sourced description: readable block + edit toggle
+                          <DescriptionBlock
+                            text={item.description}
+                            onEdit={text => update(item.id, { description: text })}
+                          />
+                        ) : (
+                          <textarea
+                            value={(item.description ?? '').replace('_edited_', '')}
+                            onChange={e => update(item.id, { description: e.target.value })}
+                            className="bg-amber-950/30 border border-amber-800/20 rounded-lg px-2.5 py-2 text-xs text-amber-200/80 w-full resize-none focus:outline-none focus:border-amber-700/40 placeholder-amber-800/40"
+                            rows={4}
+                            placeholder="Item description…"
+                          />
+                        )}
                       </div>
+
                       <button onClick={() => setConfirmRemove(item)} className="text-red-500/60 hover:text-red-400 text-xs">
                         Remove
                       </button>

@@ -125,7 +125,7 @@ export default function SpellsPanel({ char, onChange }: Props) {
                       max={9}
                       value={slot.max}
                       onChange={e => updateSlot(lvl, 'max', Number(e.target.value))}
-                      className="w-6 text-center bg-amber-900/40 border border-amber-700/30 rounded text-amber-300 text-xs ml-1"
+                      className="w-10 text-center bg-amber-900/40 border border-amber-700/30 rounded text-amber-300 text-xs ml-1"
                     />
                   </div>
                 )}
