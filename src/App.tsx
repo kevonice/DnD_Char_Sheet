@@ -12,8 +12,10 @@ import SpellsPanel from './components/SpellsPanel'
 import InventoryPanel from './components/InventoryPanel'
 import CurrencyTracker from './components/CurrencyTracker'
 import ConditionsTracker from './components/ConditionsTracker'
+import CharacterCreator from './components/CharacterCreator'
 
-const STORAGE_KEY = 'dnd5e_character'
+const STORAGE_KEY    = 'dnd5e_character'
+const CREATED_KEY    = 'dnd5e_created'   // flag: has user completed wizard or chosen manual?
 
 function loadCharacter(): Character {
   try {
@@ -52,6 +54,9 @@ type Tab = 'main' | 'spells' | 'backstory'
 export default function App() {
   const [char, setChar] = useState<Character>(loadCharacter)
   const [activeTab, setActiveTab] = useState<Tab>('main')
+  const [showCreator, setShowCreator] = useState<boolean>(
+    () => !localStorage.getItem(CREATED_KEY)
+  )
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(char))
@@ -59,6 +64,26 @@ export default function App() {
 
   function update(updates: Partial<Character>) {
     setChar(prev => ({ ...prev, ...updates }))
+  }
+
+  function handleCreatorComplete(updates: Partial<Character>) {
+    setChar(prev => ({ ...prev, ...updates }))
+    localStorage.setItem(CREATED_KEY, '1')
+    setShowCreator(false)
+  }
+
+  function handleManual() {
+    localStorage.setItem(CREATED_KEY, '1')
+    setShowCreator(false)
+  }
+
+  function startNewCharacter() {
+    if (!confirm('Start a new character? Your current sheet will be cleared.')) return
+    const blank = makeDefaultCharacter()
+    setChar(blank)
+    localStorage.removeItem(CREATED_KEY)
+    localStorage.removeItem(STORAGE_KEY)
+    setShowCreator(true)
   }
 
   const pb = proficiencyBonus(char.level)
@@ -75,6 +100,10 @@ export default function App() {
     })
   }
 
+  if (showCreator) {
+    return <CharacterCreator onComplete={handleCreatorComplete} onManual={handleManual} />
+  }
+
   return (
     <div className="min-h-screen bg-[#130e06] text-amber-100 font-sans">
 
@@ -89,17 +118,26 @@ export default function App() {
               placeholder="Character Name"
               className="bg-transparent text-3xl font-bold text-amber-100 placeholder-amber-800/50 focus:outline-none border-b-2 border-amber-700/40 focus:border-amber-500/70 flex-1 min-w-0 pb-0.5 transition-colors"
             />
-            <button
-              onClick={() => update({ inspiration: !char.inspiration })}
-              title="Inspiration"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold uppercase tracking-widest transition-colors flex-shrink-0 ${
-                char.inspiration
-                  ? 'bg-amber-500/20 border-amber-500/80 text-amber-400'
-                  : 'border-amber-800/40 text-amber-700/50 hover:border-amber-600/50 hover:text-amber-600'
-              }`}
-            >
-              ★ Inspiration
-            </button>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={() => update({ inspiration: !char.inspiration })}
+                title="Inspiration"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold uppercase tracking-widest transition-colors ${
+                  char.inspiration
+                    ? 'bg-amber-500/20 border-amber-500/80 text-amber-400'
+                    : 'border-amber-800/40 text-amber-700/50 hover:border-amber-600/50 hover:text-amber-600'
+                }`}
+              >
+                ★ Inspiration
+              </button>
+              <button
+                onClick={startNewCharacter}
+                title="New character"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-900/50 text-amber-700/40 hover:border-amber-700/50 hover:text-amber-500 text-xs font-bold uppercase tracking-widest transition-colors"
+              >
+                + New
+              </button>
+            </div>
           </div>
 
           {/* Subtitle identity row */}
