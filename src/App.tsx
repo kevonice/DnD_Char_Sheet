@@ -28,13 +28,21 @@ function TextArea({ label, value, onChange, rows = 4 }: {
 }) {
   return (
     <div>
-      {label && <label className="text-[10px] uppercase tracking-widest text-amber-600/70 block mb-1">{label}</label>}
+      {label && <label className="text-[9px] uppercase tracking-widest text-amber-600/60 block mb-1">{label}</label>}
       <textarea
         value={value}
         onChange={e => onChange(e.target.value)}
         rows={rows}
-        className="w-full bg-amber-950/30 border border-amber-800/40 rounded px-2 py-1.5 text-sm text-amber-100 resize-none focus:border-amber-500 transition-colors"
+        className="w-full bg-amber-950/40 border border-amber-800/30 rounded-lg px-2.5 py-1.5 text-sm text-amber-100 resize-none focus:border-amber-600/60 transition-colors placeholder-amber-800/40"
       />
+    </div>
+  )
+}
+
+function Panel({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`bg-amber-950/30 border border-amber-800/25 rounded-xl p-3 ${className}`}>
+      {children}
     </div>
   )
 }
@@ -55,7 +63,6 @@ export default function App() {
 
   const pb = proficiencyBonus(char.level)
 
-  // Attacks auto-generated from equipped weapons
   const derivedAttacks = char.inventory
     .filter(it => it.category === 'weapon' && it.equipped)
     .map(it => weaponAttack(it, char))
@@ -69,106 +76,115 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#1a1008] text-amber-100">
-      {/* Header */}
-      <div className="border-b border-amber-800/40 bg-amber-950/60 px-4 py-3">
-        <div className="max-w-6xl mx-auto flex flex-wrap items-end gap-4">
-          <div className="flex-1 min-w-[200px]">
+    <div className="min-h-screen bg-[#130e06] text-amber-100 font-sans">
+
+      {/* ── Banner header ── */}
+      <header className="border-b border-amber-800/40 bg-gradient-to-b from-amber-950/80 to-amber-950/40 px-6 py-4">
+        <div className="max-w-[1400px] mx-auto space-y-2">
+          {/* Character name row */}
+          <div className="flex items-end gap-4">
             <input
               value={char.name}
               onChange={e => update({ name: e.target.value })}
               placeholder="Character Name"
-              className="bg-transparent text-2xl font-bold text-amber-100 placeholder-amber-800/60 w-full focus:outline-none border-b border-transparent focus:border-amber-600/50"
+              className="bg-transparent text-3xl font-bold text-amber-100 placeholder-amber-800/50 focus:outline-none border-b-2 border-amber-700/40 focus:border-amber-500/70 flex-1 min-w-0 pb-0.5 transition-colors"
             />
+            <button
+              onClick={() => update({ inspiration: !char.inspiration })}
+              title="Inspiration"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold uppercase tracking-widest transition-colors flex-shrink-0 ${
+                char.inspiration
+                  ? 'bg-amber-500/20 border-amber-500/80 text-amber-400'
+                  : 'border-amber-800/40 text-amber-700/50 hover:border-amber-600/50 hover:text-amber-600'
+              }`}
+            >
+              ★ Inspiration
+            </button>
           </div>
-          <div className="flex flex-wrap gap-3 text-sm">
+
+          {/* Subtitle identity row */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
             {(
               [
-                { label: 'Class', field: 'class' as const, placeholder: 'Wizard', width: 'w-24' },
-                { label: 'Subclass', field: 'subclass' as const, placeholder: 'Evocation', width: 'w-24' },
-                { label: 'Race', field: 'race' as const, placeholder: 'Elf', width: 'w-20' },
-                { label: 'Background', field: 'background' as const, placeholder: 'Sage', width: 'w-24' },
-                { label: 'Alignment', field: 'alignment' as const, placeholder: 'Neutral Good', width: 'w-28' },
+                { field: 'class' as const,      placeholder: 'Class',       label: 'Class' },
+                { field: 'subclass' as const,   placeholder: 'Subclass',    label: 'Subclass' },
+                { field: 'race' as const,        placeholder: 'Race',        label: 'Race' },
+                { field: 'background' as const, placeholder: 'Background',  label: 'Background' },
+                { field: 'alignment' as const,  placeholder: 'Alignment',   label: 'Alignment' },
               ] as const
-            ).map(({ label, field, placeholder, width }) => (
+            ).map(({ field, placeholder, label }) => (
               <div key={field} className="flex flex-col">
                 <input
                   value={char[field]}
                   onChange={e => update({ [field]: e.target.value })}
                   placeholder={placeholder}
-                  className={`bg-transparent text-amber-200 placeholder-amber-800/50 focus:outline-none border-b border-amber-800/30 focus:border-amber-500/60 ${width} text-sm`}
+                  className="bg-transparent text-amber-300/90 placeholder-amber-800/40 focus:outline-none border-b border-amber-800/30 focus:border-amber-600/50 text-sm min-w-[72px] pb-0.5 transition-colors"
                 />
-                <span className="text-[9px] uppercase tracking-widest text-amber-600/50 mt-0.5">{label}</span>
+                <span className="text-[8px] uppercase tracking-widest text-amber-700/50 mt-0.5">{label}</span>
               </div>
             ))}
+
             <div className="flex flex-col">
               <input
-                type="number"
-                min={1}
-                max={20}
+                type="number" min={1} max={20}
                 value={char.level}
                 onChange={e => update({ level: Number(e.target.value) })}
-                className="bg-transparent text-amber-200 focus:outline-none border-b border-amber-800/30 focus:border-amber-500/60 w-10 text-sm text-center"
+                className="bg-transparent text-amber-300/90 focus:outline-none border-b border-amber-800/30 focus:border-amber-600/50 w-10 text-sm text-center pb-0.5 transition-colors"
               />
-              <span className="text-[9px] uppercase tracking-widest text-amber-600/50 mt-0.5 text-center">Level</span>
+              <span className="text-[8px] uppercase tracking-widest text-amber-700/50 mt-0.5 text-center">Level</span>
             </div>
+
             <div className="flex flex-col">
               <input
                 type="number"
                 value={char.xp}
                 onChange={e => update({ xp: Number(e.target.value) })}
-                className="bg-transparent text-amber-200 focus:outline-none border-b border-amber-800/30 focus:border-amber-500/60 w-20 text-sm text-center"
+                className="bg-transparent text-amber-300/90 focus:outline-none border-b border-amber-800/30 focus:border-amber-600/50 w-20 text-sm text-center pb-0.5 transition-colors"
               />
-              <span className="text-[9px] uppercase tracking-widest text-amber-600/50 mt-0.5 text-center">XP</span>
+              <span className="text-[8px] uppercase tracking-widest text-amber-700/50 mt-0.5 text-center">Experience</span>
             </div>
           </div>
-          <button
-            onClick={() => update({ inspiration: !char.inspiration })}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded border text-xs font-bold uppercase tracking-wider transition-colors ${
-              char.inspiration
-                ? 'bg-amber-500/20 border-amber-500 text-amber-400'
-                : 'border-amber-800/40 text-amber-700/60 hover:border-amber-600/50'
-            }`}
-          >
-            ★ Inspiration
-          </button>
         </div>
-      </div>
+      </header>
 
-      {/* Tabs */}
-      <div className="border-b border-amber-800/30 bg-amber-950/40">
-        <div className="max-w-6xl mx-auto flex">
+      {/* ── Tab bar ── */}
+      <nav className="border-b border-amber-800/25 bg-amber-950/30">
+        <div className="max-w-[1400px] mx-auto flex">
           {(['main', 'spells', 'backstory'] as Tab[]).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-6 py-2.5 text-sm font-bold uppercase tracking-widest transition-colors border-b-2 ${
+              className={`px-7 py-2.5 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 ${
                 activeTab === tab
                   ? 'border-amber-500 text-amber-400'
-                  : 'border-transparent text-amber-700/60 hover:text-amber-500/80'
+                  : 'border-transparent text-amber-700/50 hover:text-amber-500/70'
               }`}
             >
               {tab === 'main' ? 'Character' : tab === 'spells' ? 'Spells' : 'Backstory'}
             </button>
           ))}
         </div>
-      </div>
+      </nav>
 
-      {/* Content */}
-      <div className="max-w-6xl mx-auto p-4">
+      {/* ── Page content ── */}
+      <main className="max-w-[1400px] mx-auto p-4">
+
+        {/* ════ MAIN TAB ════ */}
         {activeTab === 'main' && (
-          <div className="grid grid-cols-1 md:grid-cols-[220px_1fr_1fr] gap-4">
-            {/* Left column */}
+          <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr_300px] gap-4 items-start">
+
+            {/* ─── LEFT: Stats column ─── */}
             <div className="space-y-4">
-              <div>
+
+              <Panel>
                 <SectionHeader title="Ability Scores" />
                 <AbilityBlock
                   abilities={char.abilities}
                   onChange={(key, value) => update({ abilities: { ...char.abilities, [key]: value } })}
                 />
-              </div>
+              </Panel>
 
-              <div>
+              <Panel>
                 <SectionHeader title="Saving Throws" />
                 <SavingThrows
                   abilities={char.abilities}
@@ -178,12 +194,12 @@ export default function App() {
                     update({ savingThrows: { ...char.savingThrows, [key]: val } })
                   }
                 />
-                <p className="text-[9px] text-amber-600/40 mt-1">Proficiency Bonus: +{pb}</p>
-              </div>
+                <p className="text-[8px] text-amber-700/40 mt-1.5">Proficiency Bonus: +{pb}</p>
+              </Panel>
 
-              <div>
+              <Panel>
                 <SectionHeader title="Skills" />
-                <p className="text-[9px] text-amber-600/40 mb-2">● Expertise &nbsp; ○ Proficient</p>
+                <p className="text-[8px] text-amber-700/40 mb-2">● Expertise · ○ Proficient</p>
                 <SkillList
                   abilities={char.abilities}
                   skills={char.skills}
@@ -192,26 +208,29 @@ export default function App() {
                     update({ skills: { ...char.skills, [skill]: entry } })
                   }
                 />
-              </div>
+              </Panel>
 
-              <div className="flex items-center justify-between bg-amber-950/40 border border-amber-800/40 rounded-lg px-3 py-2">
-                <span className="text-[10px] uppercase tracking-widest text-amber-600/70 leading-tight">
-                  Passive<br />Perception
-                </span>
-                <span className="text-2xl font-bold text-amber-100">
+              <div className="bg-amber-950/50 border border-amber-700/40 rounded-xl px-4 py-3 flex items-center justify-between">
+                <div>
+                  <span className="text-[9px] uppercase tracking-widest text-amber-600/70 block">Passive</span>
+                  <span className="text-[9px] uppercase tracking-widest text-amber-600/70">Perception</span>
+                </div>
+                <span className="text-4xl font-bold text-amber-100">
                   {passivePerception(char.abilities, char.skills['Perception'], char.level)}
                 </span>
               </div>
+
             </div>
 
-            {/* Middle column */}
+            {/* ─── CENTRE: Action column ─── */}
             <div className="space-y-4">
-              <div>
+
+              <Panel>
                 <SectionHeader title="Combat" />
                 <CombatStats char={char} onChange={update} />
-              </div>
+              </Panel>
 
-              <div>
+              <Panel>
                 <SectionHeader title="Conditions" />
                 <ConditionsTracker
                   conditions={char.conditions}
@@ -219,72 +238,85 @@ export default function App() {
                   onToggle={toggleCondition}
                   onExhaustion={lvl => update({ exhaustion: lvl })}
                 />
-              </div>
+              </Panel>
 
-              <div>
+              <Panel>
                 <SectionHeader title="Attacks" />
                 <AttacksPanel
                   attacks={char.attacks}
                   derived={derivedAttacks}
                   onChange={attacks => update({ attacks })}
                 />
-              </div>
+              </Panel>
+
             </div>
 
-            {/* Right column */}
+            {/* ─── RIGHT: Inventory & lore column ─── */}
             <div className="space-y-4">
-              <div>
+
+              <Panel>
                 <SectionHeader title="Inventory" />
                 <InventoryPanel
                   inventory={char.inventory}
                   onChange={inventory => update({ inventory })}
                 />
-              </div>
+              </Panel>
 
-              <div>
+              <Panel>
                 <SectionHeader title="Currency" />
                 <CurrencyTracker
                   currency={char.currency}
                   onChange={currency => update({ currency })}
                 />
-              </div>
+              </Panel>
 
-              <div>
+              <Panel>
                 <SectionHeader title="Features & Traits" />
                 <TextArea label="" value={char.features} onChange={v => update({ features: v })} rows={6} />
-              </div>
+              </Panel>
 
-              <div>
+              <Panel>
                 <SectionHeader title="Proficiencies & Languages" />
                 <TextArea label="" value={char.proficiencies} onChange={v => update({ proficiencies: v })} rows={3} />
-              </div>
+              </Panel>
 
-              <div>
+              <Panel>
                 <SectionHeader title="Notes" />
                 <TextArea label="" value={char.notes} onChange={v => update({ notes: v })} rows={4} />
-              </div>
+              </Panel>
+
             </div>
           </div>
         )}
 
+        {/* ════ SPELLS TAB ════ */}
         {activeTab === 'spells' && (
           <SpellsPanel char={char} onChange={update} />
         )}
 
+        {/* ════ BACKSTORY TAB ════ */}
         {activeTab === 'backstory' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
-            <TextArea label="Personality Traits" value={char.personalityTraits} onChange={v => update({ personalityTraits: v })} rows={4} />
-            <TextArea label="Ideals" value={char.ideals} onChange={v => update({ ideals: v })} rows={4} />
-            <TextArea label="Bonds" value={char.bonds} onChange={v => update({ bonds: v })} rows={4} />
-            <TextArea label="Flaws" value={char.flaws} onChange={v => update({ flaws: v })} rows={4} />
+            <Panel>
+              <TextArea label="Personality Traits" value={char.personalityTraits} onChange={v => update({ personalityTraits: v })} rows={5} />
+            </Panel>
+            <Panel>
+              <TextArea label="Ideals" value={char.ideals} onChange={v => update({ ideals: v })} rows={5} />
+            </Panel>
+            <Panel>
+              <TextArea label="Bonds" value={char.bonds} onChange={v => update({ bonds: v })} rows={5} />
+            </Panel>
+            <Panel>
+              <TextArea label="Flaws" value={char.flaws} onChange={v => update({ flaws: v })} rows={5} />
+            </Panel>
           </div>
         )}
-      </div>
+      </main>
 
-      {/* Footer */}
-      <div className="border-t border-amber-800/30 mt-8 px-4 py-2 text-center text-[10px] text-amber-800/50">
+      {/* ── Footer ── */}
+      <footer className="border-t border-amber-900/30 mt-8 px-6 py-2 text-center text-[9px] text-amber-800/40 tracking-wide">
         Autosaved · {char.name || 'Unnamed'} · Level {char.level} {char.class || 'Adventurer'}
-      </div>
+      </footer>
     </div>
   )
 }

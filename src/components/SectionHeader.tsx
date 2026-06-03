@@ -4,12 +4,11 @@ interface Props {
 
 export default function SectionHeader({ title }: Props) {
   return (
-    <div className="relative flex items-center mb-3">
-      <div className="flex-1 h-px bg-amber-800/50" />
-      <span className="mx-3 text-xs font-bold tracking-widest uppercase text-amber-500/80">
+    <div className="flex items-center gap-2 mb-3">
+      <div className="w-1 h-4 bg-amber-600/70 rounded-full flex-shrink-0" />
+      <span className="text-[10px] font-bold tracking-widest uppercase text-amber-500/90">
         {title}
       </span>
-      <div className="flex-1 h-px bg-amber-800/50" />
     </div>
   )
 }
