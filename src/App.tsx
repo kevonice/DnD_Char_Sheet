@@ -15,6 +15,7 @@ import ConditionsTracker from './components/ConditionsTracker'
 import CharacterCreator from './components/CharacterCreator'
 import FeaturesPanel from './components/FeaturesPanel'
 import PortraitUploader from './components/PortraitUploader'
+import { themeForClass } from './data/classThemes'
 
 const STORAGE_KEY    = 'dnd5e_character'
 const CREATED_KEY    = 'dnd5e_created'   // flag: has user completed wizard or chosen manual?
@@ -89,6 +90,7 @@ export default function App() {
   }
 
   const pb = proficiencyBonus(char.level)
+  const theme = themeForClass(char.class)
 
   const derivedAttacks = char.inventory
     .filter(it => it.category === 'weapon' && it.equipped)
@@ -138,22 +140,34 @@ export default function App() {
     <div className="min-h-screen bg-[#130e06] text-amber-100 font-sans">
 
       {/* ── Banner header ── */}
-      <header className="border-b border-amber-800/40 bg-gradient-to-b from-amber-950/80 to-amber-950/40 px-6 py-4">
+      <header
+        className="border-b px-6 py-4 transition-colors"
+        style={{
+          borderColor: theme.accentSoft,
+          background: `linear-gradient(to bottom, ${theme.accentSoft}, rgba(20,14,6,0.4))`,
+        }}
+      >
         <div className="max-w-[1400px] mx-auto space-y-2">
           {/* Character name row */}
           <div className="flex items-center gap-4">
-            <PortraitUploader
-              portrait={char.portrait}
-              characterName={char.name}
-              onChange={portrait => update({ portrait })}
-            />
-            <div className="flex-1 min-w-0">
-              <input
-                value={char.name}
-                onChange={e => update({ name: e.target.value })}
-                placeholder="Character Name"
-                className="bg-transparent text-3xl font-bold text-amber-100 placeholder-amber-800/50 focus:outline-none border-b-2 border-amber-700/40 focus:border-amber-500/70 w-full pb-0.5 transition-colors"
+            <div className="rounded-xl" style={{ boxShadow: `0 0 0 2px ${theme.accent}` }}>
+              <PortraitUploader
+                portrait={char.portrait}
+                characterName={char.name}
+                onChange={portrait => update({ portrait })}
               />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl flex-shrink-0" title={theme.name}>{theme.glyph}</span>
+                <input
+                  value={char.name}
+                  onChange={e => update({ name: e.target.value })}
+                  placeholder="Character Name"
+                  className="bg-transparent text-3xl font-bold text-amber-100 placeholder-amber-800/50 focus:outline-none border-b-2 w-full pb-0.5 transition-colors"
+                  style={{ borderColor: theme.accentSoft }}
+                />
+              </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <button
@@ -241,19 +255,21 @@ export default function App() {
       {/* ── Tab bar ── */}
       <nav className="border-b border-amber-800/25 bg-amber-950/30">
         <div className="max-w-[1400px] mx-auto flex">
-          {(['main', 'spells', 'backstory'] as Tab[]).map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-7 py-2.5 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 ${
-                activeTab === tab
-                  ? 'border-amber-500 text-amber-400'
-                  : 'border-transparent text-amber-700/50 hover:text-amber-500/70'
-              }`}
-            >
-              {tab === 'main' ? 'Character' : tab === 'spells' ? 'Spells' : 'Background'}
-            </button>
-          ))}
+          {(['main', 'spells', 'backstory'] as Tab[]).map(tab => {
+            const isActive = activeTab === tab
+            return (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-7 py-2.5 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 ${
+                  isActive ? '' : 'border-transparent text-amber-700/50 hover:text-amber-500/70'
+                }`}
+                style={isActive ? { borderColor: theme.accent, color: theme.accent } : undefined}
+              >
+                {tab === 'main' ? 'Character' : tab === 'spells' ? 'Spells' : 'Background'}
+              </button>
+            )
+          })}
         </div>
       </nav>
 
