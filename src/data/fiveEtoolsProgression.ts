@@ -212,16 +212,11 @@ export async function fetchClassProgression(
     : undefined
 
   // ── Subclass feature names per level + descriptions ──────────────────────
+  // Build directly from the top-level subclassFeature array so that features
+  // nested inside a wrapper (e.g. Evocation Savant & Sculpt Spells inside
+  // "School of Evocation") are surfaced individually, not just the wrapper.
   const subFeaturesByLevel: string[][] = Array.from({ length: 20 }, () => [])
   if (matchedSubclass) {
-    const subRefs = Array.isArray(matchedSubclass.subclassFeatures) ? matchedSubclass.subclassFeatures : []
-    for (const ref of subRefs) {
-      const parsed = parseFeatureRef(ref)
-      if (!parsed || parsed.level < 1 || parsed.level > 20) continue
-      const bucket = subFeaturesByLevel[parsed.level - 1]
-      if (!bucket.includes(parsed.name)) bucket.push(parsed.name)
-    }
-    // Descriptions from subclassFeature array
     const shortName = String(matchedSubclass.shortName ?? '').toLowerCase()
     const subSource = String(matchedSubclass.source ?? '')
     const rawSubFeatures = (json.subclassFeature as Record<string, unknown>[] | undefined) ?? []
@@ -231,7 +226,10 @@ export async function fetchClassProgression(
       const fname  = typeof raw.name === 'string' ? raw.name : ''
       const flevel = typeof raw.level === 'number' ? raw.level : 0
       const desc   = Array.isArray(raw.entries) ? flattenEntries(raw.entries) : ''
-      if (fname) featureMap.set(`${fname}|${flevel}`, { name: fname, level: flevel, description: desc })
+      if (!fname || flevel < 1 || flevel > 20) continue
+      featureMap.set(`${fname}|${flevel}`, { name: fname, level: flevel, description: desc })
+      const bucket = subFeaturesByLevel[flevel - 1]
+      if (!bucket.includes(fname)) bucket.push(fname)
     }
   }
 
