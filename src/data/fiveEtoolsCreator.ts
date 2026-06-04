@@ -81,7 +81,17 @@ function parseRace(raw: Record<string, unknown>): CreatorRace {
     ? (raw.size as string[]).map(s => s === 'M' ? 'Medium' : s === 'S' ? 'Small' : s)
     : ['Medium']
 
-  const resistances: string[] = Array.isArray(raw.resist) ? raw.resist as string[] : []
+  const resistances: string[] = Array.isArray(raw.resist)
+    ? (raw.resist as unknown[]).map(r => {
+        if (typeof r === 'string') return r
+        if (typeof r === 'object' && r !== null) {
+          const obj = r as Record<string, unknown>
+          if (obj.choose && typeof (obj.choose as any).from === 'object') return 'choose one'
+          if (typeof obj.special === 'string') return obj.special
+        }
+        return null
+      }).filter((r): r is string => r !== null)
+    : []
 
   const traits = Array.isArray(raw.entries) ? flattenEntries(raw.entries as unknown[]) : ''
 
@@ -196,7 +206,18 @@ export function fetchCreatorClasses(): Promise<CreatorClass[]> {
         .then((json: { class: Record<string, unknown>[] }) => json.class.map(parseClass))
     )
   )
-    .then(arrays => arrays.flat().sort((a, b) => a.name.localeCompare(b.name)))
+    .then(arrays => {
+      const seen = new Set<string>()
+      return arrays.flat()
+        .filter(c => {
+          // Prefer PHB over XPHB; deduplicate by name keeping first seen
+          const key = c.name.toLowerCase()
+          if (seen.has(key)) return false
+          seen.add(key)
+          return true
+        })
+        .sort((a, b) => a.name.localeCompare(b.name))
+    })
     .catch(err => { classesPromise = null; throw err })
   return classesPromise
 }
