@@ -221,6 +221,7 @@ export async function fetchClassProgression(
     const shortName = String(matchedSubclass.shortName ?? '').toLowerCase()
     const subSource = String(matchedSubclass.source ?? '')
     const rawSubFeatures = (json.subclassFeature as Record<string, unknown>[] | undefined) ?? []
+    const seenSubFeature = new Set<string>()  // a subclass feature name appears once
     for (const raw of rawSubFeatures) {
       if (String(raw.subclassShortName ?? '').toLowerCase() !== shortName) continue
       if (raw.subclassSource !== subSource) continue
@@ -229,8 +230,9 @@ export async function fetchClassProgression(
       const desc   = Array.isArray(raw.entries) ? flattenEntries(raw.entries) : ''
       if (!fname || flevel < 1 || flevel > 20) continue
       featureMap.set(`${fname}|${flevel}`, { name: fname, level: flevel, description: desc })
-      const bucket = subFeaturesByLevel[flevel - 1]
-      if (!bucket.includes(fname)) bucket.push(fname)
+      if (seenSubFeature.has(fname)) continue
+      seenSubFeature.add(fname)
+      subFeaturesByLevel[flevel - 1].push(fname)
     }
   }
 
