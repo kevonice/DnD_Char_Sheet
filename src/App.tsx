@@ -314,7 +314,7 @@ export default function App() {
 
               <Panel>
                 <SectionHeader title="Skills" />
-                <p className="text-[8px] text-amber-700/40 mb-2">● Expertise · ○ Proficient</p>
+                <p className="text-[8px] text-amber-700/40 mb-2">Left dot = Expertise · Right dot = Proficiency</p>
                 <SkillList
                   abilities={char.abilities}
                   skills={char.skills}

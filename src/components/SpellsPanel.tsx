@@ -110,7 +110,7 @@ export default function SpellsPanel({ char, onChange }: Props) {
                 {lvl > 0 && slot && (
                   <div className="flex items-center gap-1 text-xs" onClick={e => e.stopPropagation()}>
                     <span className="text-amber-600/60">Slots:</span>
-                    {Array.from({ length: slot.max }).map((_, i) => (
+                    {Array.from({ length: Math.min(slot.max, 9) }).map((_, i) => (
                       <button
                         key={i}
                         onClick={() => updateSlot(lvl, 'used', slot.used === i + 1 ? i : i + 1)}
@@ -125,7 +125,7 @@ export default function SpellsPanel({ char, onChange }: Props) {
                       max={9}
                       value={slot.max}
                       onChange={e => updateSlot(lvl, 'max', Number(e.target.value))}
-                      className="w-10 text-center bg-amber-900/40 border border-amber-700/30 rounded text-amber-300 text-xs ml-1"
+                      className="w-12 text-center bg-amber-900/40 border border-amber-700/30 rounded text-amber-300 text-xs ml-1"
                     />
                   </div>
                 )}

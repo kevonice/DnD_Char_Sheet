@@ -5,6 +5,7 @@ import {
   SOURCE_LABELS, PRIMARY_SOURCES,
   type CreatorRace, type CreatorClass,
 } from '../data/fiveEtoolsCreator'
+import { themeForClass } from '../data/classThemes'
 
 interface Props {
   onComplete: (char: Partial<Character>) => void
@@ -79,19 +80,30 @@ function SourcePicker({ selected, onChange }: {
 
   return (
     <div className="space-y-1.5">
-      <div className="grid grid-cols-1 gap-1.5">
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          onClick={() => onChange('any')}
+          title="Show races from all sources"
+          className={`px-2.5 py-1 rounded-full border text-xs font-bold transition-colors ${
+            selected === 'any'
+              ? 'bg-amber-600/20 border-amber-500/70 text-amber-200'
+              : 'border-amber-800/30 text-amber-500/50 hover:border-amber-700/50 hover:text-amber-300'
+          }`}
+        >
+          Any
+        </button>
         {shown.map(([code, label]) => (
           <button
             key={code}
             onClick={() => onChange(code)}
-            className={`text-left px-3 py-2 rounded-lg border text-xs transition-colors ${
+            title={label}
+            className={`px-2.5 py-1 rounded-full border text-xs font-bold transition-colors ${
               selected === code
                 ? 'bg-amber-600/20 border-amber-500/70 text-amber-200'
-                : 'border-amber-800/30 text-amber-400/60 hover:border-amber-700/50 hover:text-amber-300'
+                : 'border-amber-800/30 text-amber-500/50 hover:border-amber-700/50 hover:text-amber-300'
             }`}
           >
-            <span className="font-bold text-amber-300/80 mr-2">{code}</span>
-            {label}
+            {code}
           </button>
         ))}
       </div>
@@ -172,25 +184,31 @@ function ClassPicker({ classes, loading, selected, onSelect }: {
       {loading ? (
         <p className="col-span-2 text-amber-700/50 text-xs text-center py-4 animate-pulse">Loading classes…</p>
       ) : (
-        classes.map(c => (
-          <button
-            key={c.name}
-            onClick={() => onSelect(c)}
-            className={`text-left px-3 py-2.5 rounded-lg border text-xs transition-colors ${
-              selected?.name === c.name
-                ? 'bg-amber-600/20 border-amber-500/70 text-amber-100'
-                : 'border-amber-800/25 text-amber-300/70 hover:border-amber-700/50 hover:text-amber-200'
-            }`}
-          >
-            <div className="font-semibold text-sm">{c.name}</div>
-            <div className="text-amber-600/50 mt-0.5">d{c.hitDie} · {c.savingThrows.map(s => s.toUpperCase()).join('/')}</div>
-            {c.spellcastingAbility && (
-              <div className="text-purple-400/50 mt-0.5">
-                Spellcasting ({ABILITY_LABELS[c.spellcastingAbility]?.slice(0,3) ?? c.spellcastingAbility})
+        classes.map(c => {
+          const glyph = themeForClass(c.name).glyph
+          return (
+            <button
+              key={c.name}
+              onClick={() => onSelect(c)}
+              className={`text-left px-3 py-2.5 rounded-lg border text-xs transition-colors ${
+                selected?.name === c.name
+                  ? 'bg-amber-600/20 border-amber-500/70 text-amber-100'
+                  : 'border-amber-800/25 text-amber-300/70 hover:border-amber-700/50 hover:text-amber-200'
+              }`}
+            >
+              <div className="font-semibold text-sm flex items-center gap-1.5">
+                <span>{glyph}</span>
+                {c.name}
               </div>
-            )}
-          </button>
-        ))
+              <div className="text-amber-600/50 mt-0.5">d{c.hitDie} · {c.savingThrows.map(s => s.toUpperCase()).join('/')}</div>
+              {c.spellcastingAbility && (
+                <div className="text-purple-400/50 mt-0.5">
+                  Spellcasting ({ABILITY_LABELS[c.spellcastingAbility]?.slice(0,3) ?? c.spellcastingAbility})
+                </div>
+              )}
+            </button>
+          )
+        })
       )}
     </div>
   )
