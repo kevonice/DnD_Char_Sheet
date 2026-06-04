@@ -16,6 +16,7 @@ import ConditionsTracker from './components/ConditionsTracker'
 import CharacterCreator from './components/CharacterCreator'
 import FeaturesPanel from './components/FeaturesPanel'
 import PortraitUploader from './components/PortraitUploader'
+import ClassTab from './components/ClassTab'
 import { themeForClass, themeVars, DEFAULT_THEME } from './data/classThemes'
 
 const STORAGE_KEY    = 'dnd5e_character'
@@ -61,7 +62,7 @@ function Panel({ children, className = '' }: { children: React.ReactNode; classN
   )
 }
 
-type Tab = 'main' | 'spells' | 'backstory'
+type Tab = 'main' | 'spells' | 'backstory' | 'class'
 
 export default function App() {
   const [char, setChar] = useState<Character>(loadCharacter)
@@ -272,8 +273,9 @@ export default function App() {
       {/* ── Tab bar ── */}
       <nav className="border-b border-amber-800/25 bg-amber-950/30">
         <div className="max-w-[1400px] mx-auto flex">
-          {(['main', 'spells', 'backstory'] as Tab[]).map(tab => {
+          {(['main', 'spells', 'class', 'backstory'] as Tab[]).map(tab => {
             const isActive = activeTab === tab
+            const labels: Record<Tab, string> = { main: 'Character', spells: 'Spells', class: 'Class', backstory: 'Background' }
             return (
               <button
                 key={tab}
@@ -283,7 +285,7 @@ export default function App() {
                 }`}
                 style={isActive ? { borderColor: theme.accent, color: theme.accent } : undefined}
               >
-                {tab === 'main' ? 'Character' : tab === 'spells' ? 'Spells' : 'Background'}
+                {labels[tab]}
               </button>
             )
           })}
@@ -444,6 +446,11 @@ export default function App() {
         {/* ════ SPELLS TAB ════ */}
         {activeTab === 'spells' && (
           <SpellsPanel char={char} onChange={update} />
+        )}
+
+        {/* ════ CLASS TAB ════ */}
+        {activeTab === 'class' && (
+          <ClassTab className={char.class} />
         )}
 
         {/* ════ BACKGROUND TAB ════ */}
