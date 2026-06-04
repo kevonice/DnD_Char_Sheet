@@ -6,6 +6,7 @@ type ProgressionEdition = '2014' | '2024'
 
 interface Props {
   className: string
+  subclass: string
 }
 
 const PROF_COLOR = [
@@ -41,7 +42,7 @@ function FeatureDetail({ feature }: { feature: ClassFeatureDesc }) {
   )
 }
 
-export default function ClassTab({ className }: Props) {
+export default function ClassTab({ className, subclass }: Props) {
   const [edition, setEdition] = useState<ProgressionEdition>('2014')
   const [data, setData] = useState<ClassProgressionData | null>(null)
   const [loading, setLoading] = useState(false)
@@ -53,14 +54,14 @@ export default function ClassTab({ className }: Props) {
     setLoading(true)
     setError(null)
     setSelected(null)
-    fetchClassProgression(className, edition)
+    fetchClassProgression(className, edition, subclass)
       .then(d => {
         setData(d)
         if (!d) setError(`No class data found for "${className}".`)
       })
       .catch(e => setError(String(e?.message ?? e)))
       .finally(() => setLoading(false))
-  }, [className, edition])
+  }, [className, subclass, edition])
 
   if (!className) {
     return (
@@ -112,9 +113,15 @@ export default function ClassTab({ className }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h2 className="text-lg font-bold text-amber-100">{data.name} Progression</h2>
+          <h2 className="text-lg font-bold text-amber-100">
+            {data.name} Progression
+            {data.subclassName && <span className="text-purple-300/80"> · {data.subclassName}</span>}
+          </h2>
           <p className="text-[10px] text-amber-700/50 uppercase tracking-widest">
             d{data.hitDie} Hit Die · {data.source}
+            {subclass && !data.subclassName && (
+              <span className="text-red-400/60 normal-case tracking-normal"> · subclass "{subclass}" not found for this edition</span>
+            )}
           </p>
         </div>
         <EditionToggle value={edition} onChange={v => { if (v !== 'all') setEdition(v) }} />
@@ -182,6 +189,29 @@ export default function ClassTab({ className }: Props) {
                           </button>
                         )
                       })}
+                      {/* Subclass features — purple-tinted */}
+                      {row.subclassFeatures.map(name => {
+                        const hasDesc = data.featureMap.has(`${name}|${row.level}`) ||
+                          [...data.featureMap.values()].some(f => f.name === name)
+                        const isSelected = selected?.name === name
+                        return (
+                          <button
+                            key={`sub-${name}`}
+                            onClick={() => toggle(name, row.level)}
+                            disabled={!hasDesc}
+                            title={data.subclassName}
+                            className={`px-1.5 py-0.5 rounded text-[10px] transition-colors ${
+                              isSelected
+                                ? 'bg-purple-600/30 text-purple-100 border border-purple-400/50'
+                                : hasDesc
+                                  ? 'text-purple-300/80 hover:text-purple-100 hover:bg-purple-800/30 border border-purple-700/30'
+                                  : 'text-purple-400/40 border border-transparent'
+                            }`}
+                          >
+                            ◆ {name}
+                          </button>
+                        )
+                      })}
                     </div>
                   </td>
 
@@ -199,7 +229,7 @@ export default function ClassTab({ className }: Props) {
       </div>
 
       <p className="text-[9px] text-amber-800/40 text-center">
-        Click a feature name to view its description · Highlighted rows = ASI levels (1, 5, 11, 17)
+        Click a feature name to view its description · <span className="text-purple-400/60">◆ purple</span> = subclass features · Highlighted rows = ASI levels (1, 5, 11, 17)
       </p>
     </div>
   )

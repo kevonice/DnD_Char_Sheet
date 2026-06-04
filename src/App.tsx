@@ -450,7 +450,7 @@ export default function App() {
 
         {/* ════ CLASS TAB ════ */}
         {activeTab === 'class' && (
-          <ClassTab className={char.class} />
+          <ClassTab className={char.class} subclass={char.subclass} />
         )}
 
         {/* ════ BACKGROUND TAB ════ */}

@@ -3,8 +3,9 @@ const BASE = 'https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/mai
 export interface ClassLevel {
   level: number
   profBonus: number
-  features: string[]   // display names
-  columns: string[]    // values for each colLabel
+  features: string[]          // class feature display names
+  subclassFeatures: string[]  // subclass feature display names (if a subclass is set)
+  columns: string[]           // values for each colLabel
 }
 
 export interface ClassFeatureDesc {
@@ -13,13 +14,21 @@ export interface ClassFeatureDesc {
   description: string
 }
 
+export interface SubclassOption {
+  name: string
+  shortName: string
+  source: string
+}
+
 export interface ClassProgressionData {
   name: string
   source: string
+  subclassName?: string       // resolved subclass display name, if matched
   hitDie: number
   colLabels: string[]
   levels: ClassLevel[]
   featureMap: Map<string, ClassFeatureDesc>  // key: `${name}|${level}`
+  subclasses: SubclassOption[]               // all available subclasses for this edition
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -122,12 +131,14 @@ const cache = new Map<string, ClassProgressionData>()
 export async function fetchClassProgression(
   className: string,
   edition: '2014' | '2024',
+  subclassName?: string,
 ): Promise<ClassProgressionData | null> {
   const key = className.toLowerCase().split(/[\s/(]/)[0]
   const file = CLASS_FILE[key]
   if (!file) return null
 
-  const cacheKey = `${key}|${edition}`
+  const sub = (subclassName ?? '').trim().toLowerCase()
+  const cacheKey = `${key}|${edition}|${sub}`
   if (cache.has(cacheKey)) return cache.get(cacheKey)!
 
   const json = await fetch(`${BASE}/class/${file}`).then(r => r.json())
@@ -179,6 +190,48 @@ export async function fetchClassProgression(
     if (fname) featureMap.set(`${fname}|${flevel}`, { name: fname, level: flevel, description: desc })
   }
 
+  // ── Subclasses available in this edition ─────────────────────────────────
+  const rawSubclasses = (classEntry.subclass as Record<string, unknown>[] | undefined) ?? []
+  const editionSubclasses = rawSubclasses.filter(s => s.source === classEntry.source)
+  const subclasses: SubclassOption[] = editionSubclasses.map(s => ({
+    name: (s.name as string) ?? '',
+    shortName: (s.shortName as string) ?? '',
+    source: (s.source as string) ?? '',
+  })).filter(s => s.name)
+
+  // Match the requested subclass (by full name or short name, case-insensitive)
+  const matchedSubclass = sub
+    ? editionSubclasses.find(s => {
+        const n  = String(s.name ?? '').toLowerCase()
+        const sn = String(s.shortName ?? '').toLowerCase()
+        return n === sub || sn === sub || n.includes(sub) || sub.includes(sn)
+      })
+    : undefined
+
+  // ── Subclass feature names per level + descriptions ──────────────────────
+  const subFeaturesByLevel: string[][] = Array.from({ length: 20 }, () => [])
+  if (matchedSubclass) {
+    const subRefs = Array.isArray(matchedSubclass.subclassFeatures) ? matchedSubclass.subclassFeatures : []
+    for (const ref of subRefs) {
+      const parsed = parseFeatureRef(ref)
+      if (!parsed || parsed.level < 1 || parsed.level > 20) continue
+      const bucket = subFeaturesByLevel[parsed.level - 1]
+      if (!bucket.includes(parsed.name)) bucket.push(parsed.name)
+    }
+    // Descriptions from subclassFeature array
+    const shortName = String(matchedSubclass.shortName ?? '').toLowerCase()
+    const subSource = String(matchedSubclass.source ?? '')
+    const rawSubFeatures = (json.subclassFeature as Record<string, unknown>[] | undefined) ?? []
+    for (const raw of rawSubFeatures) {
+      if (String(raw.subclassShortName ?? '').toLowerCase() !== shortName) continue
+      if (raw.subclassSource !== subSource) continue
+      const fname  = typeof raw.name === 'string' ? raw.name : ''
+      const flevel = typeof raw.level === 'number' ? raw.level : 0
+      const desc   = Array.isArray(raw.entries) ? flattenEntries(raw.entries) : ''
+      if (fname) featureMap.set(`${fname}|${flevel}`, { name: fname, level: flevel, description: desc })
+    }
+  }
+
   // ── Build levels array ────────────────────────────────────────────────────
   const levels: ClassLevel[] = Array.from({ length: 20 }, (_, i) => {
     const lvl = i + 1
@@ -186,6 +239,7 @@ export async function fetchClassProgression(
       level: lvl,
       profBonus: profBonus(lvl),
       features: featuresByLevel[i],
+      subclassFeatures: subFeaturesByLevel[i],
       columns: allGroupRows[i].map(cellStr),
     }
   })
@@ -193,10 +247,12 @@ export async function fetchClassProgression(
   const result: ClassProgressionData = {
     name: classEntry.name as string,
     source: classEntry.source as string,
+    subclassName: matchedSubclass ? (matchedSubclass.name as string) : undefined,
     hitDie: hd,
     colLabels: allColLabels,
     levels,
     featureMap,
+    subclasses,
   }
 
   cache.set(cacheKey, result)
