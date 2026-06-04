@@ -112,17 +112,22 @@ export default function ClassTab({ className, subclass }: Props) {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <div>
+        <div className="min-w-0">
           <h2 className="text-lg font-bold text-amber-100">
             {data.name} Progression
             {data.subclassName && <span className="text-purple-300/80"> · {data.subclassName}</span>}
           </h2>
           <p className="text-[10px] text-amber-700/50 uppercase tracking-widest">
             d{data.hitDie} Hit Die · {data.source}
-            {subclass && !data.subclassName && (
-              <span className="text-red-400/60 normal-case tracking-normal"> · subclass "{subclass}" not found for this edition</span>
-            )}
           </p>
+          {subclass && !data.subclassName && (
+            <p className="text-[10px] text-red-400/60 mt-1">
+              Subclass "{subclass}" not found for this edition.
+              {data.subclasses.length > 0 && (
+                <span className="text-amber-700/60"> Try: {data.subclasses.map(s => s.name).join(', ')}</span>
+              )}
+            </p>
+          )}
         </div>
         <EditionToggle value={edition} onChange={v => { if (v !== 'all') setEdition(v) }} />
       </div>

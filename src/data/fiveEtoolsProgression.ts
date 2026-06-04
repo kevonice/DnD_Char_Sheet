@@ -191,11 +191,12 @@ export async function fetchClassProgression(
   }
 
   // ── Subclasses available in this edition ─────────────────────────────────
-  // Subclasses live at the TOP LEVEL of the JSON (json.subclass), not inside classEntry
+  // Subclasses live at the TOP LEVEL of the JSON (json.subclass), not inside
+  // classEntry. They come from many books (DMG, XGE, TCE…), so match by the
+  // BASE CLASS source (classSource) rather than the subclass's own book — that
+  // keeps the right edition while still including e.g. Death Domain (DMG).
   const allSubclasses = (json.subclass as Record<string, unknown>[] | undefined) ?? []
-  const editionSubclasses = allSubclasses.filter(
-    s => s.classSource === classEntry.source && s.source === classEntry.source
-  )
+  const editionSubclasses = allSubclasses.filter(s => s.classSource === classEntry.source)
   const subclasses: SubclassOption[] = editionSubclasses.map(s => ({
     name: (s.name as string) ?? '',
     shortName: (s.shortName as string) ?? '',
