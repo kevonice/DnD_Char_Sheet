@@ -191,8 +191,11 @@ export async function fetchClassProgression(
   }
 
   // ── Subclasses available in this edition ─────────────────────────────────
-  const rawSubclasses = (classEntry.subclass as Record<string, unknown>[] | undefined) ?? []
-  const editionSubclasses = rawSubclasses.filter(s => s.source === classEntry.source)
+  // Subclasses live at the TOP LEVEL of the JSON (json.subclass), not inside classEntry
+  const allSubclasses = (json.subclass as Record<string, unknown>[] | undefined) ?? []
+  const editionSubclasses = allSubclasses.filter(
+    s => s.classSource === classEntry.source && s.source === classEntry.source
+  )
   const subclasses: SubclassOption[] = editionSubclasses.map(s => ({
     name: (s.name as string) ?? '',
     shortName: (s.shortName as string) ?? '',
