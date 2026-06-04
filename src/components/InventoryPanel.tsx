@@ -7,6 +7,7 @@ import EditionToggle from './EditionToggle'
 
 interface Props {
   inventory: InventoryItem[]
+  str: number
   onChange: (inventory: InventoryItem[]) => void
 }
 
@@ -86,7 +87,7 @@ function blankItem(category: Category): InventoryItem {
   return base
 }
 
-export default function InventoryPanel({ inventory, onChange }: Props) {
+export default function InventoryPanel({ inventory, str, onChange }: Props) {
   const [expanded, setExpanded]   = useState<string | null>(null)
   const [searching, setSearching] = useState<Category | null>(null)
   const [edition, setEdition]     = useState<Edition>('2014')
@@ -117,8 +118,6 @@ export default function InventoryPanel({ inventory, onChange }: Props) {
   function remove(id: string) { onChange(inventory.filter(it => it.id !== id)) }
   function add(item: InventoryItem) { onChange([...inventory, item]) }
 
-  const totalWeight = inventory.reduce((sum, it) => sum + it.weight * it.quantity, 0)
-
   function clearDataCache() {
     Object.keys(localStorage)
       .filter(k => k.startsWith('fiveEtools_'))
@@ -126,8 +125,29 @@ export default function InventoryPanel({ inventory, onChange }: Props) {
     window.location.reload()
   }
 
+  const carryCapacity = str * 15
+  const totalWeightCarried = inventory.reduce((sum, it) => sum + it.weight * it.quantity, 0)
+  const pct = Math.min(totalWeightCarried / carryCapacity, 1)
+  const overencumbered = totalWeightCarried > carryCapacity
+
   return (
     <div className="space-y-4">
+      {/* Encumbrance bar */}
+      <div>
+        <div className="flex justify-between text-[9px] text-amber-600/60 mb-1">
+          <span className={overencumbered ? 'text-red-400 font-bold' : ''}>
+            {overencumbered ? '⚠ Encumbered · ' : ''}{totalWeightCarried.toFixed(1)} lb
+          </span>
+          <span>Capacity: {carryCapacity} lb</span>
+        </div>
+        <div className="h-1.5 bg-amber-950/60 rounded-full overflow-hidden border border-amber-800/30">
+          <div
+            className={`h-full rounded-full transition-all ${overencumbered ? 'bg-red-500/70' : 'bg-amber-500/60'}`}
+            style={{ width: `${pct * 100}%` }}
+          />
+        </div>
+      </div>
+
       {CATEGORIES.map(cat => {
         const items   = inventory.filter(it => it.category === cat)
         const db      = dbs[cat]
@@ -365,7 +385,7 @@ export default function InventoryPanel({ inventory, onChange }: Props) {
         >
           Reload 5e.tools data
         </button>
-        <span>Total weight: {totalWeight} lb</span>
+        <span>Total weight: {totalWeightCarried.toFixed(1)} lb</span>
       </div>
 
       {confirmRemove && (

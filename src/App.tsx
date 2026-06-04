@@ -393,6 +393,7 @@ export default function App() {
                 <SectionHeader title="Inventory" />
                 <InventoryPanel
                   inventory={char.inventory}
+                  str={char.abilities.str}
                   onChange={inventory => update({ inventory })}
                 />
               </Panel>
