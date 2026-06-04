@@ -1,13 +1,13 @@
 import { useState } from 'react'
-import type { ActiveFeature, ActionType, RechargeType } from '../types'
+import type { ActiveFeature, PassiveTrait, ActionType, RechargeType } from '../types'
 import { v4 as uuid } from '../uuid'
 
 interface Props {
   activeFeatures: ActiveFeature[]
-  passiveTraits: string
+  passiveTraits: PassiveTrait[]
   backgroundFlavour: string
   onActiveChange: (features: ActiveFeature[]) => void
-  onPassiveChange: (text: string) => void
+  onPassiveChange: (traits: PassiveTrait[]) => void
   onBackgroundChange: (text: string) => void
 }
 
@@ -208,6 +208,49 @@ function FeatureCard({ feature, onChange, onRemove }: {
   )
 }
 
+// ── Passive trait card ────────────────────────────────────────────────────────
+
+function TraitCard({ trait, onChange, onRemove }: {
+  trait: PassiveTrait
+  onChange: (t: PassiveTrait) => void
+  onRemove: () => void
+}) {
+  const [expanded, setExpanded] = useState(!trait.name)
+
+  return (
+    <div className="bg-amber-950/40 border border-amber-800/25 rounded-lg">
+      <div className="flex items-center gap-2 px-2.5 py-2">
+        <div className="w-1.5 h-1.5 rounded-full bg-amber-600/60 flex-shrink-0" />
+        <input
+          value={trait.name}
+          onChange={e => onChange({ ...trait, name: e.target.value })}
+          placeholder="Trait name…"
+          className="bg-transparent text-amber-100 text-sm flex-1 min-w-0 focus:outline-none placeholder-amber-800/40"
+        />
+        <button
+          onClick={() => setExpanded(v => !v)}
+          className="text-amber-700/40 hover:text-amber-400 text-xs flex-shrink-0"
+        >⋯</button>
+      </div>
+
+      {expanded && (
+        <div className="border-t border-amber-800/20 px-2.5 pb-2.5 pt-2 space-y-2">
+          <textarea
+            value={trait.description}
+            onChange={e => onChange({ ...trait, description: e.target.value })}
+            placeholder="Describe this trait…"
+            rows={3}
+            className="w-full bg-transparent border border-amber-800/20 rounded px-2 py-1.5 text-xs text-amber-200/70 resize-none focus:outline-none focus:border-amber-700/50 placeholder-amber-800/40"
+          />
+          <button onClick={onRemove} className="text-red-500/50 hover:text-red-400 text-xs">
+            Remove
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main panel ───────────────────────────────────────────────────────────────
 
 export default function FeaturesPanel({
@@ -227,6 +270,18 @@ export default function FeaturesPanel({
 
   function removeFeature(id: string) {
     onActiveChange(activeFeatures.filter(x => x.id !== id))
+  }
+
+  function addTrait() {
+    onPassiveChange([...passiveTraits, { id: uuid(), name: '', description: '' }])
+  }
+
+  function updateTrait(id: string, t: PassiveTrait) {
+    onPassiveChange(passiveTraits.map(x => x.id === id ? t : x))
+  }
+
+  function removeTrait(id: string) {
+    onPassiveChange(passiveTraits.filter(x => x.id !== id))
   }
 
   return (
@@ -255,14 +310,26 @@ export default function FeaturesPanel({
       </Section>
 
       {/* ── Passive Traits ── */}
-      <Section title="Passive Traits">
-        <textarea
-          value={passiveTraits}
-          onChange={e => onPassiveChange(e.target.value)}
-          placeholder="Always-on traits: darkvision, damage resistances, advantage on saves vs charm, etc."
-          rows={5}
-          className="w-full bg-amber-950/40 border border-amber-800/25 rounded-lg px-2.5 py-2 text-sm text-amber-100 resize-none focus:outline-none focus:border-amber-600/50 placeholder-amber-800/40 transition-colors"
-        />
+      <Section
+        title="Passive Traits"
+        subtitle={passiveTraits.length ? `${passiveTraits.length} trait${passiveTraits.length !== 1 ? 's' : ''}` : undefined}
+      >
+        <div className="space-y-1.5">
+          {passiveTraits.map(t => (
+            <TraitCard
+              key={t.id}
+              trait={t}
+              onChange={updated => updateTrait(t.id, updated)}
+              onRemove={() => removeTrait(t.id)}
+            />
+          ))}
+          <button
+            onClick={addTrait}
+            className="w-full text-xs text-amber-600/50 hover:text-amber-400 border border-dashed border-amber-800/30 rounded-lg py-1.5 transition-colors"
+          >
+            + Add trait
+          </button>
+        </div>
       </Section>
 
       {/* ── Background & Flavour ── */}

@@ -52,6 +52,7 @@ export function makeDefaultCharacter(): Character {
     conditions: [],
     exhaustion: 0,
     activeFeatures: [],
+    passiveTraits: [],
     features: '',
     backgroundFlavour: '',
     personalityTraits: '',

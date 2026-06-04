@@ -74,6 +74,12 @@ export interface InventoryItem {
   source?: string
 }
 
+export interface PassiveTrait {
+  id: string
+  name: string
+  description: string
+}
+
 export type ActionType = 'action' | 'bonus' | 'reaction' | 'special'
 export type RechargeType = 'atwill' | 'short' | 'long' | 'dawn'
 
@@ -151,7 +157,8 @@ export interface Character {
 
   // Features, traits, notes
   activeFeatures: ActiveFeature[]
-  features: string        // passive traits
+  passiveTraits: PassiveTrait[]
+  features: string        // legacy — migrated on load
   backgroundFlavour: string
   personalityTraits: string
   ideals: string

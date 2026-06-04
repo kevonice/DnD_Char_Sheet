@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { Character, AbilityKey } from './types'
+import { v4 as uuid } from './uuid'
 import { makeDefaultCharacter } from './defaultCharacter'
 import { proficiencyBonus, passivePerception, weaponAttack, takeShortRest, takeLongRest } from './utils'
 import SectionHeader from './components/SectionHeader'
@@ -23,7 +24,15 @@ const CREATED_KEY    = 'dnd5e_created'   // flag: has user completed wizard or c
 function loadCharacter(): Character {
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved) return { ...makeDefaultCharacter(), ...JSON.parse(saved) }
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      const merged: Character = { ...makeDefaultCharacter(), ...parsed }
+      // Migrate old freeform features string → first PassiveTrait entry
+      if (!merged.passiveTraits?.length && merged.features) {
+        merged.passiveTraits = [{ id: uuid(), name: 'Traits', description: merged.features }]
+      }
+      return merged
+    }
   } catch {}
   return makeDefaultCharacter()
 }
@@ -410,10 +419,10 @@ export default function App() {
                 <SectionHeader title="Features & Traits" />
                 <FeaturesPanel
                   activeFeatures={char.activeFeatures ?? []}
-                  passiveTraits={char.features}
+                  passiveTraits={char.passiveTraits ?? []}
                   backgroundFlavour={char.backgroundFlavour ?? ''}
                   onActiveChange={activeFeatures => update({ activeFeatures })}
-                  onPassiveChange={features => update({ features })}
+                  onPassiveChange={passiveTraits => update({ passiveTraits })}
                   onBackgroundChange={backgroundFlavour => update({ backgroundFlavour })}
                 />
               </Panel>

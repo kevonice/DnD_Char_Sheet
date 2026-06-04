@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import type { Character, AbilityKey } from '../types'
+import type { Character, AbilityKey, PassiveTrait } from '../types'
+import { v4 as uuid } from '../uuid'
 import {
   fetchCreatorRaces, fetchCreatorClasses,
   SOURCE_LABELS, PRIMARY_SOURCES,
@@ -257,13 +258,19 @@ export default function CharacterCreator({ onComplete, onManual }: Props) {
     const raceName  = raceTab  === 'custom' ? customRace  : (selectedRace?.name  ?? '')
     const className = classTab === 'custom' ? customClass : (selectedClass?.name ?? '')
 
-    // Build Features & Traits from race
-    const featureParts: string[] = []
+    // Build passive traits from race
+    const passiveTraits: PassiveTrait[] = []
     if (selectedRace && raceTab === 'search') {
-      if (selectedRace.size.length) featureParts.push(`Size: ${selectedRace.size.join(' or ')}`)
-      if (selectedRace.darkvision) featureParts.push(`Darkvision: ${selectedRace.darkvision} ft`)
-      if (selectedRace.resistances.length) featureParts.push(`Damage Resistances: ${selectedRace.resistances.join(', ')}`)
-      if (selectedRace.traits) featureParts.push('\n' + selectedRace.traits)
+      const summaryParts: string[] = []
+      if (selectedRace.size.length) summaryParts.push(`Size: ${selectedRace.size.join(' or ')}`)
+      if (selectedRace.darkvision) summaryParts.push(`Darkvision: ${selectedRace.darkvision} ft`)
+      if (selectedRace.resistances.length) summaryParts.push(`Damage Resistances: ${selectedRace.resistances.join(', ')}`)
+      if (summaryParts.length) {
+        passiveTraits.push({ id: uuid(), name: `${selectedRace.name} — Racial Traits`, description: summaryParts.join('\n') })
+      }
+      if (selectedRace.traits) {
+        passiveTraits.push({ id: uuid(), name: `${selectedRace.name} — Traits`, description: selectedRace.traits })
+      }
     }
 
     // Build proficiency string from class
@@ -294,8 +301,8 @@ export default function CharacterCreator({ onComplete, onManual }: Props) {
       for (const key of selectedClass.savingThrows) savingThrows[key] = true
       if (Object.keys(savingThrows).length) updates.savingThrows = savingThrows as any
     }
-    if (featureParts.length) updates.features    = featureParts.join('\n')
-    if (profParts.length)    updates.proficiencies = profParts.join('\n')
+    if (passiveTraits.length) updates.passiveTraits = passiveTraits
+    if (profParts.length)     updates.proficiencies = profParts.join('\n')
 
     return updates
   }
@@ -540,7 +547,7 @@ export default function CharacterCreator({ onComplete, onManual }: Props) {
         {selectedRace && raceTab === 'search' && selectedRace.traits && (
           <div className="bg-amber-950/60 border border-amber-800/20 rounded-lg p-3 mb-5 max-h-28 overflow-y-auto">
             <div className="text-[9px] uppercase tracking-widest text-amber-600/60 mb-1">Race traits → Features & Traits</div>
-            <p className="text-xs text-amber-300/60 whitespace-pre-wrap">{preview.features?.slice(0, 300)}{(preview.features?.length ?? 0) > 300 ? '…' : ''}</p>
+            <p className="text-xs text-amber-300/60 whitespace-pre-wrap">{preview.passiveTraits?.map(t => `• ${t.name}`).join('\n')}</p>
           </div>
         )}
 
