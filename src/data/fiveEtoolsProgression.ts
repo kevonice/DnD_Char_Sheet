@@ -45,16 +45,28 @@ function cellStr(cell: unknown): string {
   return '—'
 }
 
-function featureName(ref: unknown): string | null {
-  if (typeof ref === 'string') return ref.split('|')[0] || null
-  if (typeof ref === 'object' && ref !== null) {
+// Parse a feature ref ("Name|ClassName|ClassSource|Level") into name + level.
+function parseFeatureRef(ref: unknown): { name: string; level: number } | null {
+  let raw: string | null = null
+  if (typeof ref === 'string') raw = ref
+  else if (typeof ref === 'object' && ref !== null) {
     const o = ref as Record<string, unknown>
-    if (o.gainSubclassFeature) return 'Subclass Feature'
-    if (typeof o.classFeature === 'string') return o.classFeature.split('|')[0] || null
-    if (typeof o.refClassFeature === 'string') return o.refClassFeature.split('|')[0] || null
-    if (typeof o.name === 'string') return o.name
+    // classFeature/refClassFeature strings encode the level — parse those first
+    if (typeof o.classFeature === 'string') raw = o.classFeature
+    else if (typeof o.refClassFeature === 'string') raw = o.refClassFeature
+    else if (typeof o.name === 'string') raw = o.name
   }
-  return null
+  if (!raw) return null
+  const parts = raw.split('|')
+  const name = parts[0]?.trim()
+  if (!name) return null
+  // Level is the last part that parses as a number (usually index 3)
+  let level = 0
+  for (let i = parts.length - 1; i >= 1; i--) {
+    const n = Number(parts[i])
+    if (Number.isFinite(n) && n >= 1 && n <= 20) { level = n; break }
+  }
+  return { name, level }
 }
 
 function stripTags(text: string): string {
@@ -145,8 +157,16 @@ export async function fetchClassProgression(
     }
   }
 
-  // ── Feature names per level ───────────────────────────────────────────────
-  const classFeatureRefs = (classEntry.classFeatures as unknown[][] | undefined) ?? []
+  // ── Feature names per level (classFeatures is a FLAT array of refs, each
+  //    encoding its own level) ───────────────────────────────────────────────
+  const featuresByLevel: string[][] = Array.from({ length: 20 }, () => [])
+  const rawRefs = Array.isArray(classEntry.classFeatures) ? classEntry.classFeatures : []
+  for (const ref of rawRefs) {
+    const parsed = parseFeatureRef(ref)
+    if (!parsed || parsed.level < 1 || parsed.level > 20) continue
+    const bucket = featuresByLevel[parsed.level - 1]
+    if (!bucket.includes(parsed.name)) bucket.push(parsed.name)
+  }
 
   // ── Feature descriptions from classFeature array ─────────────────────────
   const featureMap = new Map<string, ClassFeatureDesc>()
@@ -162,16 +182,10 @@ export async function fetchClassProgression(
   // ── Build levels array ────────────────────────────────────────────────────
   const levels: ClassLevel[] = Array.from({ length: 20 }, (_, i) => {
     const lvl = i + 1
-    const refs = classFeatureRefs[i] ?? []
-    const features = (refs as unknown[])
-      .map(featureName)
-      .filter((n): n is string => n !== null && n !== '')
-      .filter((n, idx, arr) => arr.indexOf(n) === idx) // dedupe
-
     return {
       level: lvl,
       profBonus: profBonus(lvl),
-      features,
+      features: featuresByLevel[i],
       columns: allGroupRows[i].map(cellStr),
     }
   })
