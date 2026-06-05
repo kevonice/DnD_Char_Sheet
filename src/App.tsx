@@ -414,7 +414,7 @@ export default function App() {
       {/* ── Tab bar ── */}
       <nav className="border-b border-amber-800/25 bg-amber-950/30">
         <div className="max-w-[1400px] mx-auto flex">
-          {(['main', 'spells', 'class', 'backstory', 'notes'] as Tab[]).map(tab => {
+          {(['main', 'spells', 'class', 'backstory', 'notes', 'chronicle', 'maps'] as Tab[]).map(tab => {
             const isActive = activeTab === tab
             const labels: Record<Tab, string> = { main: 'Character', spells: 'Spells', class: 'Class', backstory: 'Background', notes: 'Notes', chronicle: 'Chronicle', maps: 'Maps' }
             return (
