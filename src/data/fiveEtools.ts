@@ -367,7 +367,7 @@ interface CategorisedItems {
 }
 
 const BASE_ITEMS_KEY  = 'fiveEtools_baseItems_v6'
-const MAGIC_ITEMS_KEY = 'fiveEtools_magicItems_v8'
+const MAGIC_ITEMS_KEY = 'fiveEtools_magicItems_v9'
 
 let baseItemsPromise:  Promise<CategorisedItems> | null = null
 let magicItemsPromise: Promise<CategorisedItems> | null = null
@@ -416,17 +416,17 @@ function fetchMagicItems(): Promise<CategorisedItems> {
     try {
       const res  = await fetch(`${BASE}/items.json`)
       const json: RawItemFile = await res.json()
-      // Keep anything with a rarity (= a magic item). Items with no rarity are
-      // mundane and already covered by items-base.json.
+      // Include ALL items from items.json — mundane gear (rarity "none") and magic alike.
+      // items-base.json only has base weapon/armor stats; packs, clothes, tools, and
+      // most adventuring gear live here with rarity "none" and would otherwise be missing.
       const result: CategorisedItems = { weapon: [], armor: [], gear: [], misc: [] }
-      for (const raw of (json.item ?? [])) {
-        if (!raw.rarity || raw.rarity === 'none') continue
-        // Magic weapons/armor keep their real category so a +1 Dagger lands in
-        // Weapons and +1 Plate lands in Armor. Magic "gear" (Alchemy Jug etc.)
-        // and typeless wondrous items all go to Items & Magic instead of the
-        // mundane Gear & Tools tab.
+      const allItems = [...(json.item ?? []), ...(json.itemGroup ?? [])]
+      for (const raw of allItems) {
         const item = mapItem(raw)
-        const cat = item.category === 'gear' ? 'misc' : item.category
+        // Magic wondrous / typeless items go to Items & Magic; everything else keeps
+        // its natural category (weapons, armor, gear).
+        const isMagic = raw.rarity && raw.rarity !== 'none'
+        const cat = (isMagic && item.category === 'gear') ? 'misc' : item.category
         result[cat].push({ ...item, category: cat })
       }
       for (const arr of Object.values(result)) arr.sort((a: InventoryItem, b: InventoryItem) => a.name.localeCompare(b.name))
@@ -449,13 +449,44 @@ function fetchMagicItems(): Promise<CategorisedItems> {
 // both — e.g. Weapons lists the Longsword AND the +1 Longsword / Flame Tongue.
 async function fetchCategory(cat: keyof CategorisedItems): Promise<InventoryItem[]> {
   const [base, magic] = await Promise.all([fetchBaseItems(), fetchMagicItems()])
-  return [...base[cat], ...magic[cat]].sort((a, b) => a.name.localeCompare(b.name))
+  // Deduplicate: items-base.json and items.json overlap for core PHB items.
+  // Prefer the items.json version (richer data) when both exist.
+  const seen = new Set<string>()
+  const merged: InventoryItem[] = []
+  // items.json first so its version wins on collision
+  for (const item of [...magic[cat], ...base[cat]]) {
+    const key = `${item.name.toLowerCase()}|${(item.source ?? '').toLowerCase()}`
+    if (!seen.has(key)) { seen.add(key); merged.push(item) }
+  }
+  return merged.sort((a, b) => a.name.localeCompare(b.name))
 }
 
 export function fetchWeapons():   Promise<InventoryItem[]> { return fetchCategory('weapon') }
 export function fetchArmor():     Promise<InventoryItem[]> { return fetchCategory('armor') }
 export function fetchGear():      Promise<InventoryItem[]> { return fetchCategory('gear') }
 export function fetchMiscItems(): Promise<InventoryItem[]> { return fetchCategory('misc') }
+
+// Look up a list of item names against the full 5etools database.
+// Returns the best-matched InventoryItem for each name (or the bare placeholder if not found).
+export async function lookupItems(placeholders: InventoryItem[]): Promise<InventoryItem[]> {
+  const [base, magic] = await Promise.all([fetchBaseItems(), fetchMagicItems()])
+  const allItems = [
+    ...magic.weapon, ...magic.armor, ...magic.gear, ...magic.misc,
+    ...base.weapon,  ...base.armor,  ...base.gear,  ...base.misc,
+  ]
+
+  return placeholders.map(placeholder => {
+    const query = placeholder.name.toLowerCase()
+    // Exact match first, then startsWith, then includes
+    const found =
+      allItems.find(it => it.name.toLowerCase() === query) ??
+      allItems.find(it => it.name.toLowerCase().startsWith(query)) ??
+      allItems.find(it => it.name.toLowerCase().includes(query))
+    if (!found) return placeholder
+    // Give the found item a fresh id so it doesn't collide
+    return { ...found, id: placeholder.id }
+  })
+}
 
 // Spell sources to load:
 //   2014 — PHB + Xanathar's + Tasha's

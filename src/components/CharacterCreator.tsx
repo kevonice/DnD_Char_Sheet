@@ -7,6 +7,7 @@ import {
   type CreatorRace, type CreatorClass,
 } from '../data/fiveEtoolsCreator'
 import { themeForClass } from '../data/classThemes'
+import { lookupItems } from '../data/fiveEtools'
 
 interface Props {
   onComplete: (char: Partial<Character>) => void
@@ -236,6 +237,7 @@ export default function CharacterCreator({ onComplete, onManual }: Props) {
 
   const [raceTab, setRaceTab]   = useState<'search' | 'custom'>('search')
   const [classTab, setClassTab] = useState<'search' | 'custom'>('search')
+  const [creating, setCreating] = useState(false)
 
   // Prefetch race + class data as soon as wizard opens
   useEffect(() => {
@@ -558,10 +560,22 @@ export default function CharacterCreator({ onComplete, onManual }: Props) {
         <div className="flex justify-between">
           <button onClick={() => setStep('class')} className="text-amber-700/50 hover:text-amber-500 text-sm">← Back</button>
           <button
-            onClick={() => onComplete(buildCharacter())}
-            className="px-6 py-2.5 bg-amber-600/70 hover:bg-amber-500/80 text-amber-50 rounded-lg text-sm font-bold transition-colors"
+            disabled={creating}
+            onClick={async () => {
+              setCreating(true)
+              try {
+                const built = buildCharacter()
+                if (built.inventory?.length) {
+                  built.inventory = await lookupItems(built.inventory)
+                }
+                onComplete(built)
+              } finally {
+                setCreating(false)
+              }
+            }}
+            className="px-6 py-2.5 bg-amber-600/70 hover:bg-amber-500/80 text-amber-50 rounded-lg text-sm font-bold transition-colors disabled:opacity-50"
           >
-            Create Character ✦
+            {creating ? 'Building…' : 'Create Character ✦'}
           </button>
         </div>
       </Card>
