@@ -115,7 +115,9 @@ export default function SpellsPanel({ char, onChange }: Props) {
                         key={i}
                         onClick={() => updateSlot(lvl, 'used', slot.used === i + 1 ? i : i + 1)}
                         className={`w-4 h-4 rounded border text-[8px] transition-colors ${
-                          i < slot.used ? 'bg-amber-900/80 border-amber-700/40 text-amber-700' : 'bg-amber-400/20 border-amber-500/40'
+                          i < slot.used
+                            ? 'bg-amber-950/60 border-amber-800/30'
+                            : 'bg-amber-400 border-amber-300/60 shadow-[0_0_4px_rgba(251,191,36,0.35)]'
                         }`}
                       />
                     ))}
