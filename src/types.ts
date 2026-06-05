@@ -81,6 +81,20 @@ export interface InventoryItem {
   source?: string
 }
 
+export type ProficiencyCategory = 'armor' | 'weapon' | 'tool' | 'other'
+
+export interface ProficiencyEntry {
+  id: string
+  name: string
+  category: ProficiencyCategory
+}
+
+export interface LanguageEntry {
+  id: string
+  name: string
+  notes: string  // e.g. "read only", "telepathic"
+}
+
 export interface PassiveTrait {
   id: string
   name: string
@@ -144,7 +158,9 @@ export interface Character {
   savingThrows: Record<AbilityKey, boolean>
 
   // Proficiencies & languages
-  proficiencies: string
+  proficiencies: string        // legacy — migrated on load
+  proficiencyList: ProficiencyEntry[]
+  languages: LanguageEntry[]
 
   // Attacks
   attacks: AttackEntry[]

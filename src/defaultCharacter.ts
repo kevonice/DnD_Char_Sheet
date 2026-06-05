@@ -30,6 +30,8 @@ export function makeDefaultCharacter(): Character {
     savingThrows: defaultSavingThrows(),
 
     proficiencies: '',
+    proficiencyList: [],
+    languages: [],
 
     attacks: [],
 

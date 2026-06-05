@@ -18,6 +18,7 @@ import FeaturesPanel from './components/FeaturesPanel'
 import PortraitUploader from './components/PortraitUploader'
 import ClassTab from './components/ClassTab'
 import NotesTab from './components/NotesTab'
+import ProficienciesPanel from './components/ProficienciesPanel'
 import AppearancePanel, { overrideToTheme } from './components/AppearancePanel'
 import { themeForClassAndSubclass, themeVars, bgVars, DEFAULT_THEME } from './data/classThemes'
 
@@ -39,6 +40,13 @@ function loadCharacter(): Character {
         merged.noteTree = [{ id: uuid(), title: 'Notes', content: merged.notes, children: [] }]
       }
       if (!merged.noteTree) merged.noteTree = []
+      // Migrate old freeform proficiencies string → proficiencyList + languages
+      if (!merged.proficiencyList?.length && merged.proficiencies) {
+        const lines = merged.proficiencies.split(/[,\n;]+/).map((s: string) => s.trim()).filter(Boolean)
+        merged.proficiencyList = lines.map((name: string) => ({ id: uuid(), name, category: 'other' as const }))
+      }
+      if (!merged.proficiencyList) merged.proficiencyList = []
+      if (!merged.languages) merged.languages = []
       return merged
     }
   } catch {}
@@ -549,7 +557,7 @@ export default function App() {
 
               <Panel>
                 <SectionHeader title="Proficiencies & Languages" />
-                <TextArea label="" value={char.proficiencies} onChange={v => update({ proficiencies: v })} rows={3} />
+                <ProficienciesPanel char={char} onChange={update} />
               </Panel>
 
             </div>
