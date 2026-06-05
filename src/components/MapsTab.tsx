@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import type { Character, MapEntry, MapAnnotation } from '../types'
 import { v4 as uuid } from '../uuid'
 import MapEditor from './MapEditor'
+import { saveMapImage, deleteMapImage, compressImage } from '../mapImageStore'
 
 interface Props {
   char: Character
@@ -13,6 +14,7 @@ export default function MapsTab({ char, onChange }: Props) {
   const [activeId, setActiveId] = useState<string | null>(maps[0]?.id ?? null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameVal, setRenameVal] = useState('')
+  const [uploading, setUploading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const activeMap = maps.find(m => m.id === activeId) ?? null
@@ -21,30 +23,28 @@ export default function MapsTab({ char, onChange }: Props) {
     onChange({ maps: updated })
   }
 
-  function addMap(e: React.ChangeEvent<HTMLInputElement>) {
+  async function addMap(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = ev => {
+    e.target.value = ''
+    setUploading(true)
+    try {
+      const compressed = await compressImage(file)
       const id = uuid()
-      const data = ev.target?.result as string
-      try {
-        localStorage.setItem(`dnd5e_map_img_${id}`, data)
-      } catch {
-        alert('Image too large for local storage. Try a smaller file.')
-        return
-      }
+      await saveMapImage(id, compressed)
       const newMap: MapEntry = { id, name: file.name.replace(/\.[^.]+$/, ''), annotations: [] }
       updateMaps([...maps, newMap])
       setActiveId(id)
+    } catch (err) {
+      alert('Failed to save image: ' + (err instanceof Error ? err.message : err))
+    } finally {
+      setUploading(false)
     }
-    reader.readAsDataURL(file)
-    e.target.value = ''
   }
 
-  function deleteMap(id: string) {
+  async function deleteMap(id: string) {
     if (!confirm('Remove this map? Annotations will be lost.')) return
-    localStorage.removeItem(`dnd5e_map_img_${id}`)
+    await deleteMapImage(id)
     const updated = maps.filter(m => m.id !== id)
     updateMaps(updated)
     if (activeId === id) setActiveId(updated[0]?.id ?? null)
@@ -66,10 +66,11 @@ export default function MapsTab({ char, onChange }: Props) {
       {/* ── Map list sidebar ── */}
       <div className="w-44 flex-shrink-0 flex flex-col gap-1.5">
         <button
-          onClick={() => fileRef.current?.click()}
-          className="w-full text-xs text-amber-600/50 hover:text-amber-400 border border-dashed border-amber-800/40 hover:border-amber-700/50 rounded-lg py-2 transition-colors"
+          onClick={() => !uploading && fileRef.current?.click()}
+          disabled={uploading}
+          className="w-full text-xs text-amber-600/50 hover:text-amber-400 border border-dashed border-amber-800/40 hover:border-amber-700/50 rounded-lg py-2 transition-colors disabled:opacity-50"
         >
-          + Upload map
+          {uploading ? 'Processing…' : '+ Upload map'}
         </button>
         <input
           ref={fileRef}
@@ -136,7 +137,6 @@ export default function MapsTab({ char, onChange }: Props) {
         {activeMap ? (
           <MapEditor
             map={activeMap}
-            imageKey={`dnd5e_map_img_${activeMap.id}`}
             onAnnotationsChange={ann => updateAnnotations(activeMap.id, ann)}
           />
         ) : (

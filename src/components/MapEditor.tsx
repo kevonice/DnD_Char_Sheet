@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
 import type { MapAnnotation, MapEntry } from '../types'
 import { v4 as uuid } from '../uuid'
+import { loadMapImage } from '../mapImageStore'
 
 type Tool = 'pan' | 'draw' | 'pin' | 'text' | 'erase'
 
 interface Props {
   map: MapEntry
-  imageKey: string
   onAnnotationsChange: (annotations: MapAnnotation[]) => void
 }
 
@@ -31,7 +31,7 @@ function pointsToPath(pts: Array<{ x: number; y: number }>, W: number, H: number
   return d
 }
 
-export default function MapEditor({ map, imageKey, onAnnotationsChange }: Props) {
+export default function MapEditor({ map, onAnnotationsChange }: Props) {
   const [tool, setTool] = useState<Tool>('pan')
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
@@ -59,13 +59,14 @@ export default function MapEditor({ map, imageKey, onAnnotationsChange }: Props)
   useEffect(() => { offsetRef.current = offset }, [offset])
   useEffect(() => { scaleRef.current = scale }, [scale])
 
-  // Load image
+  // Load image from IndexedDB
   useEffect(() => {
-    setImgSrc(localStorage.getItem(imageKey))
+    setImgSrc(null)
     setOffset({ x: 0, y: 0 })
     setScale(1)
     setImgSize({ w: 0, h: 0 })
-  }, [imageKey])
+    loadMapImage(map.id).then(src => setImgSrc(src))
+  }, [map.id])
 
   function fitView(iw: number, ih: number) {
     const c = containerRef.current
