@@ -19,7 +19,7 @@ import PortraitUploader from './components/PortraitUploader'
 import ClassTab from './components/ClassTab'
 import NotesTab from './components/NotesTab'
 import AppearancePanel, { overrideToTheme } from './components/AppearancePanel'
-import { themeForClass, themeVars, DEFAULT_THEME } from './data/classThemes'
+import { themeForClass, themeVars, bgVars, DEFAULT_THEME } from './data/classThemes'
 
 const STORAGE_KEY    = 'dnd5e_character'
 const CREATED_KEY    = 'dnd5e_created'   // flag: has user completed wizard or chosen manual?
@@ -159,9 +159,12 @@ export default function App() {
       className="min-h-screen text-amber-100 font-sans"
       style={{
         ...themeVars(theme),
-        backgroundColor: theme === DEFAULT_THEME
-          ? '#130e06'
-          : `oklch(15% ${(0.04 * theme.chroma).toFixed(3)} ${theme.hue})`,
+        ...(char.appearanceOverride?.bgHex ? bgVars(char.appearanceOverride.bgHex) : {}),
+        backgroundColor: char.appearanceOverride?.bgHex
+          ? char.appearanceOverride.bgHex
+          : theme === DEFAULT_THEME
+            ? '#130e06'
+            : `oklch(15% ${(0.04 * theme.chroma).toFixed(3)} ${theme.hue})`,
       }}
     >
 

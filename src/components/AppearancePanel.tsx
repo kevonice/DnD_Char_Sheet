@@ -93,11 +93,23 @@ export const PRESETS: { key: string; theme: ClassTheme }[] = [
   { key: 'artificer', theme: { name:'Artificer', hue:188, chroma:0.9,  accent:'#14b8a6', accentSoft:'rgba(20,184,166,0.18)', glyph:'⚙️' } },
 ]
 
+// ── Background presets ────────────────────────────────────────────────────────
+
+export const BG_PRESETS: { label: string; hex: string }[] = [
+  { label: 'Obsidian',  hex: '#130e06' },
+  { label: 'Midnight',  hex: '#07091a' },
+  { label: 'Forest',    hex: '#061409' },
+  { label: 'Void',      hex: '#0d0712' },
+  { label: 'Crimson',   hex: '#140608' },
+  { label: 'Slate',     hex: '#090d14' },
+  { label: 'Pure Black',hex: '#000000' },
+]
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 interface Props {
-  override: { hue: number; chroma: number; accent: string } | null | undefined
-  onChangeOverride: (o: { hue: number; chroma: number; accent: string } | null) => void
+  override: { hue: number; chroma: number; accent: string; bgHex?: string } | null | undefined
+  onChangeOverride: (o: { hue: number; chroma: number; accent: string; bgHex?: string } | null) => void
   currentClassTheme: ClassTheme
 }
 
@@ -105,13 +117,16 @@ export default function AppearancePanel({ override, onChangeOverride, currentCla
   const [open, setOpen] = useState(false)
   const [hexInput, setHexInput] = useState(override?.accent ?? '')
   const [hexError, setHexError] = useState(false)
+  const [bgInput, setBgInput] = useState(override?.bgHex ?? '')
+  const [bgError, setBgError] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
 
-  // Sync hex input when override changes externally
+  // Sync inputs when override changes externally
   useEffect(() => {
     setHexInput(override?.accent ?? '')
-  }, [override?.accent])
+    setBgInput(override?.bgHex ?? '')
+  }, [override?.accent, override?.bgHex])
 
   // Close on outside click
   useEffect(() => {
@@ -126,15 +141,23 @@ export default function AppearancePanel({ override, onChangeOverride, currentCla
     return () => document.removeEventListener('mousedown', onDown)
   }, [open])
 
+  // Merge a partial change into the existing override, preserving other fields
+  function mergeOverride(patch: Partial<{ hue: number; chroma: number; accent: string; bgHex: string }>) {
+    const base = override ?? { hue: currentClassTheme.hue, chroma: currentClassTheme.chroma, accent: currentClassTheme.accent }
+    onChangeOverride({ ...base, ...patch })
+  }
+
   function applyHex(raw: string) {
     const hex = raw.trim().startsWith('#') ? raw.trim() : `#${raw.trim()}`
     const result = hexToThemeOverride(hex)
-    if (result) {
-      setHexError(false)
-      onChangeOverride(result)
-    } else {
-      setHexError(true)
-    }
+    if (result) { setHexError(false); mergeOverride(result) }
+    else setHexError(true)
+  }
+
+  function applyBg(raw: string) {
+    const hex = raw.trim().startsWith('#') ? raw.trim() : `#${raw.trim()}`
+    if (/^#[0-9a-f]{6}$/i.test(hex)) { setBgError(false); mergeOverride({ bgHex: hex }) }
+    else setBgError(true)
   }
 
   // Preview swatch for custom input
@@ -142,6 +165,7 @@ export default function AppearancePanel({ override, onChangeOverride, currentCla
   const previewTheme = previewOverride ? overrideToTheme(previewOverride) : null
 
   const activeAccent = override?.accent ?? currentClassTheme.accent
+  const activeBg = override?.bgHex ?? '#130e06'
 
   return (
     <div className="relative">
@@ -183,10 +207,9 @@ export default function AppearancePanel({ override, onChangeOverride, currentCla
                     title={theme.name}
                     onClick={() => {
                       if (key === 'default') {
-                        onChangeOverride(null)
-                        setHexInput('')
+                        onChangeOverride(null); setHexInput(''); setBgInput('')
                       } else {
-                        onChangeOverride({ hue: theme.hue, chroma: theme.chroma, accent: theme.accent })
+                        mergeOverride({ hue: theme.hue, chroma: theme.chroma, accent: theme.accent })
                         setHexInput(theme.accent)
                       }
                     }}
@@ -205,28 +228,23 @@ export default function AppearancePanel({ override, onChangeOverride, currentCla
             </div>
           </div>
 
-          {/* Custom hex input */}
+          {/* ── Accent colour ── */}
           <div>
-            <p className="text-[9px] uppercase tracking-widest text-amber-700/50 mb-2">Custom colour</p>
+            <p className="text-[9px] uppercase tracking-widest text-amber-700/50 mb-2">Accent colour</p>
             <div className="flex gap-2 items-center">
-              {/* native colour picker */}
               <input
                 type="color"
                 value={override?.accent ?? '#d97706'}
                 onChange={e => {
                   setHexInput(e.target.value)
                   const result = hexToThemeOverride(e.target.value)
-                  if (result) { setHexError(false); onChangeOverride(result) }
+                  if (result) { setHexError(false); mergeOverride(result) }
                 }}
                 className="w-8 h-8 rounded cursor-pointer border-0 bg-transparent p-0"
               />
-              {/* hex text input */}
               <input
                 value={hexInput}
-                onChange={e => {
-                  setHexInput(e.target.value)
-                  setHexError(false)
-                }}
+                onChange={e => { setHexInput(e.target.value); setHexError(false) }}
                 onBlur={() => hexInput && applyHex(hexInput)}
                 onKeyDown={e => e.key === 'Enter' && applyHex(hexInput)}
                 placeholder="#d97706"
@@ -235,19 +253,59 @@ export default function AppearancePanel({ override, onChangeOverride, currentCla
                   hexError ? 'border-red-500/60 text-red-400' : 'border-amber-800/40 focus:border-amber-600/60'
                 }`}
               />
-              {/* live preview swatch */}
               {previewTheme && (
-                <div
-                  className="w-6 h-6 rounded-md border border-white/20 flex-shrink-0"
-                  style={{ backgroundColor: previewTheme.accent }}
-                />
+                <div className="w-6 h-6 rounded-md border border-white/20 flex-shrink-0" style={{ backgroundColor: previewTheme.accent }} />
               )}
             </div>
-            {hexError && (
-              <p className="text-[10px] text-red-400/70 mt-1">Enter a valid hex colour, e.g. #ff6b35</p>
-            )}
-            <p className="text-[9px] text-amber-800/50 mt-1.5">Type a hex code or use the colour picker. Press Enter to apply.</p>
+            {hexError && <p className="text-[10px] text-red-400/70 mt-1">Enter a valid hex colour, e.g. #ff6b35</p>}
           </div>
+
+          {/* ── Background colour ── */}
+          <div>
+            <p className="text-[9px] uppercase tracking-widest text-amber-700/50 mb-2">Background colour</p>
+            {/* Presets */}
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {BG_PRESETS.map(({ label, hex }) => (
+                <button
+                  key={hex}
+                  title={label}
+                  onClick={() => { mergeOverride({ bgHex: hex }); setBgInput(hex) }}
+                  className={`w-6 h-6 rounded border-2 transition-all hover:scale-110 ${
+                    activeBg === hex ? 'border-white/60 scale-110' : 'border-transparent'
+                  }`}
+                  style={{ backgroundColor: hex, boxShadow: activeBg === hex ? `0 0 6px ${hex}` : undefined }}
+                />
+              ))}
+            </div>
+            {/* Custom */}
+            <div className="flex gap-2 items-center">
+              <input
+                type="color"
+                value={activeBg}
+                onChange={e => {
+                  setBgInput(e.target.value)
+                  setBgError(false)
+                  mergeOverride({ bgHex: e.target.value })
+                }}
+                className="w-8 h-8 rounded cursor-pointer border-0 bg-transparent p-0"
+              />
+              <input
+                value={bgInput}
+                onChange={e => { setBgInput(e.target.value); setBgError(false) }}
+                onBlur={() => bgInput && applyBg(bgInput)}
+                onKeyDown={e => e.key === 'Enter' && applyBg(bgInput)}
+                placeholder="#130e06"
+                maxLength={7}
+                className={`flex-1 bg-amber-950/40 border rounded px-2 py-1 text-xs font-mono text-amber-200 focus:outline-none transition-colors ${
+                  bgError ? 'border-red-500/60 text-red-400' : 'border-amber-800/40 focus:border-amber-600/60'
+                }`}
+              />
+              <div className="w-6 h-6 rounded-md border border-white/20 flex-shrink-0" style={{ backgroundColor: activeBg }} />
+            </div>
+            {bgError && <p className="text-[10px] text-red-400/70 mt-1">Enter a valid hex colour, e.g. #07091a</p>}
+          </div>
+
+          <p className="text-[9px] text-amber-800/50">Use colour picker or type any hex code. Press Enter to apply.</p>
         </div>
       )}
     </div>

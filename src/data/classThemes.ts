@@ -70,3 +70,41 @@ export function themeVars(theme: ClassTheme): React.CSSProperties {
   }
   return vars as React.CSSProperties
 }
+
+// Dark-stop overrides from a background hex colour.
+// Replaces only the 700-950 stops so dark panels shift independently of accent.
+export function bgVars(bgHex: string): React.CSSProperties {
+  const m = /^#?([0-9a-f]{6})$/i.exec(bgHex)
+  if (!m) return {}
+  const r = parseInt(m[1].slice(0, 2), 16) / 255
+  const g = parseInt(m[1].slice(2, 4), 16) / 255
+  const b = parseInt(m[1].slice(4, 6), 16) / 255
+  const max = Math.max(r, g, b), min = Math.min(r, g, b)
+  const d = max - min
+  let h = 0
+  if (d > 0) {
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6
+    else if (max === g) h = ((b - r) / d + 2) / 6
+    else h = ((r - g) / d + 4) / 6
+  }
+  const hslHue = h * 360
+  const map: [number, number][] = [
+    [0,30],[30,60],[60,100],[120,148],[180,195],[240,262],[270,300],[300,330],[360,390],
+  ]
+  let oklchHue = hslHue
+  for (let i = 0; i < map.length - 1; i++) {
+    const [h0, o0] = map[i]; const [h1, o1] = map[i + 1]
+    if (hslHue >= h0 && hslHue <= h1) { oklchHue = o0 + ((hslHue - h0) / (h1 - h0)) * (o1 - o0); break }
+  }
+  const sat = max === 0 ? 0 : d / max
+  const chroma = sat * 0.08  // keep dark stops subtly tinted, never vivid
+  const darkStops: [number, number, number][] = [
+    [700, 55.5, chroma], [800, 47.3, chroma * 0.9],
+    [900, 41.4, chroma * 0.8], [950, 27.9, chroma * 0.6],
+  ]
+  const vars: Record<string, string> = {}
+  for (const [key, l, c] of darkStops) {
+    vars[`--color-amber-${key}`] = `oklch(${l}% ${c.toFixed(3)} ${oklchHue})`
+  }
+  return vars as React.CSSProperties
+}
