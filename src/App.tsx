@@ -234,7 +234,7 @@ export default function App() {
                   <button
                     title="Change icon"
                     onClick={() => setGlyphOpen(o => !o)}
-                    className="text-2xl leading-none hover:scale-110 transition-transform p-1 cursor-pointer select-none"
+                    className="text-2xl leading-none hover:scale-110 transition-transform p-2 cursor-pointer select-none relative z-10"
                   >
                     {theme.glyph}
                   </button>
