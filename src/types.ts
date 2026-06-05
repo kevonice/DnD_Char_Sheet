@@ -188,5 +188,6 @@ export interface Character {
     bgGradient?: string   // CSS gradient string (preset)
     bgBlur?: number       // px, 0-20
     bgOverlay?: number    // 0-1 darkness overlay opacity
+    glyph?: string        // custom icon emoji; null/undefined = auto from class theme
   } | null
 }

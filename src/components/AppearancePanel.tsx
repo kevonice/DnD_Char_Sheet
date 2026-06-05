@@ -63,14 +63,14 @@ export function hexToThemeOverride(hex: string): { hue: number; chroma: number; 
 }
 
 // Build a full ClassTheme from an override object
-export function overrideToTheme(o: { hue: number; chroma: number; accent: string }): ClassTheme {
+export function overrideToTheme(o: { hue: number; chroma: number; accent: string; glyph?: string }): ClassTheme {
   return {
     name: 'Custom',
     hue: o.hue,
     chroma: o.chroma,
     accent: o.accent,
     accentSoft: hexToAccentSoft(o.accent),
-    glyph: '🎨',
+    glyph: o.glyph ?? '🎨',
   }
 }
 

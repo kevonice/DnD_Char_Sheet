@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { Character, AbilityKey } from './types'
 import { v4 as uuid } from './uuid'
 import { makeDefaultCharacter } from './defaultCharacter'
@@ -77,6 +77,16 @@ export default function App() {
   const [showCreator, setShowCreator] = useState<boolean>(
     () => !localStorage.getItem(CREATED_KEY)
   )
+  const [glyphOpen, setGlyphOpen] = useState(false)
+  const glyphRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!glyphOpen) return
+    function handleClick(e: MouseEvent) {
+      if (glyphRef.current && !glyphRef.current.contains(e.target as Node)) setGlyphOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [glyphOpen])
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(char))
@@ -220,7 +230,64 @@ export default function App() {
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-2xl flex-shrink-0" title={theme.name}>{theme.glyph}</span>
+                <div ref={glyphRef} className="relative flex-shrink-0">
+                  <button
+                    title="Change icon"
+                    onClick={() => setGlyphOpen(o => !o)}
+                    className="text-2xl leading-none hover:scale-110 transition-transform"
+                  >
+                    {theme.glyph}
+                  </button>
+                  {glyphOpen && (
+                    <div
+                      className="absolute top-full left-0 mt-1 z-50 bg-amber-950 border border-amber-700/40 rounded-xl p-2 shadow-2xl"
+                      style={{ width: 220 }}
+                    >
+                      <p className="text-[9px] uppercase tracking-widest text-amber-600/60 mb-1.5 px-1">Choose icon</p>
+                      <div className="grid grid-cols-7 gap-0.5">
+                        {[
+                          '⚔️','🛡️','🏹','🪄','📖','🔮','🎵',
+                          '🐉','💀','🌙','☀️','🔥','❄️','⚡',
+                          '🌿','🐾','🗡️','🪓','🔱','⚜️','🏺',
+                          '🎲','🃏','🎭','🧿','💎','🌊','🌑',
+                          '🦅','🐺','🦁','🐍','🕷️','🦇','🦉',
+                          '⚗️','🧪','📜','🗺️','🧭','🔔','🕯️',
+                          '👁️','💫','✨','🌟','🌈','🩸','🎨',
+                        ].map(emoji => (
+                          <button
+                            key={emoji}
+                            onClick={() => {
+                              const base = char.appearanceOverride ?? {
+                                hue: classTheme.hue,
+                                chroma: classTheme.chroma,
+                                accent: classTheme.accent,
+                              }
+                              update({ appearanceOverride: { ...base, glyph: emoji } })
+                              setGlyphOpen(false)
+                            }}
+                            className={`text-xl p-1 rounded hover:bg-amber-800/40 transition-colors ${
+                              theme.glyph === emoji ? 'bg-amber-800/60 ring-1 ring-amber-500/50' : ''
+                            }`}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (char.appearanceOverride) {
+                            const { glyph: _g, ...rest } = char.appearanceOverride as any
+                            update({ appearanceOverride: Object.keys(rest).length ? rest : null })
+                          }
+                          setGlyphOpen(false)
+                        }}
+                        className="mt-1.5 w-full text-[10px] text-amber-600/50 hover:text-amber-400 text-center"
+                      >
+                        Reset to class icon
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <input
                   value={char.name}
                   onChange={e => update({ name: e.target.value })}
