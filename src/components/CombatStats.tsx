@@ -19,10 +19,12 @@ export default function CombatStats({ char, onChange }: Props) {
   const pb = proficiencyBonus(char.level)
   const initMod = modifier(char.abilities.dex)
   const initDisplay = initMod >= 0 ? `+${initMod}` : `${initMod}`
-  const hpPct = char.maxHp > 0 ? Math.max(0, Math.min(1, char.currentHp / char.maxHp)) : 0
-  const hpColor = hpPct > 0.5 ? 'bg-green-500' : hpPct > 0.25 ? 'bg-yellow-500' : 'bg-red-500'
-  // Temp HP bar: blue segment appended after current HP, capped so total bar ≤ 100%
-  const tempPct = char.maxHp > 0 ? Math.min(char.tempHp / char.maxHp, 1 - hpPct) : 0
+  const totalBar = char.maxHp + char.tempHp
+  const hpPct = totalBar > 0 ? Math.max(0, Math.min(1, char.currentHp / totalBar)) : 0
+  const hpColor = char.maxHp > 0
+    ? (char.currentHp / char.maxHp > 0.5 ? 'bg-green-500' : char.currentHp / char.maxHp > 0.25 ? 'bg-yellow-500' : 'bg-red-500')
+    : 'bg-green-500'
+  const tempPct = totalBar > 0 ? char.tempHp / totalBar : 0
 
   return (
     <div className="space-y-3">
@@ -35,6 +37,7 @@ export default function CombatStats({ char, onChange }: Props) {
             <input
               type="number"
               value={char.currentHp}
+              onFocus={e => e.target.select()}
               onChange={e => onChange({ currentHp: Number(e.target.value) })}
               className={`text-5xl font-bold bg-transparent text-center w-full focus:outline-none leading-none ${
                 char.currentHp <= 0 ? 'text-red-400' : char.currentHp < char.maxHp / 2 ? 'text-yellow-400' : 'text-green-400'
@@ -48,12 +51,13 @@ export default function CombatStats({ char, onChange }: Props) {
               <input
                 type="number"
                 value={char.maxHp}
+                onFocus={e => e.target.select()}
                 onChange={e => {
-                const newMax = Number(e.target.value)
-                const updates: Partial<Character> = { maxHp: newMax }
-                if (char.currentHp > newMax) updates.currentHp = newMax
-                onChange(updates)
-              }}
+                  const newMax = Number(e.target.value)
+                  const updates: Partial<Character> = { maxHp: newMax }
+                  if (char.currentHp > newMax) updates.currentHp = newMax
+                  onChange(updates)
+                }}
                 className="text-lg font-bold bg-transparent text-amber-100 text-center w-full focus:outline-none"
               />
             </div>
@@ -62,6 +66,7 @@ export default function CombatStats({ char, onChange }: Props) {
               <input
                 type="number"
                 value={char.tempHp}
+                onFocus={e => e.target.select()}
                 onChange={e => onChange({ tempHp: Number(e.target.value) })}
                 className="text-lg font-bold bg-transparent text-blue-300 text-center w-full focus:outline-none"
               />
