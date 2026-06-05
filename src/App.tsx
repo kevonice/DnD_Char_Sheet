@@ -20,6 +20,7 @@ import ClassTab from './components/ClassTab'
 import NotesTab from './components/NotesTab'
 import ProficienciesPanel from './components/ProficienciesPanel'
 import ChronicleTab from './components/ChronicleTab'
+import MapsTab from './components/MapsTab'
 import AppearancePanel, { overrideToTheme } from './components/AppearancePanel'
 import { themeForClassAndSubclass, themeVars, bgVars, DEFAULT_THEME } from './data/classThemes'
 import { detectChanges } from './changelog'
@@ -49,6 +50,7 @@ function loadCharacter(): Character {
       }
       if (!merged.proficiencyList) merged.proficiencyList = []
       if (!merged.languages) merged.languages = []
+      if (!merged.maps) merged.maps = []
       if (!merged.changelog) merged.changelog = []
       return merged
     }
@@ -80,7 +82,7 @@ function Panel({ children, className = '' }: { children: React.ReactNode; classN
   )
 }
 
-type Tab = 'main' | 'spells' | 'backstory' | 'class' | 'notes' | 'chronicle'
+type Tab = 'main' | 'spells' | 'backstory' | 'class' | 'notes' | 'chronicle' | 'maps'
 
 export default function App() {
   const [char, setChar] = useState<Character>(loadCharacter)
@@ -414,7 +416,7 @@ export default function App() {
         <div className="max-w-[1400px] mx-auto flex">
           {(['main', 'spells', 'class', 'backstory', 'notes'] as Tab[]).map(tab => {
             const isActive = activeTab === tab
-            const labels: Record<Tab, string> = { main: 'Character', spells: 'Spells', class: 'Class', backstory: 'Background', notes: 'Notes', chronicle: 'Chronicle' }
+            const labels: Record<Tab, string> = { main: 'Character', spells: 'Spells', class: 'Class', backstory: 'Background', notes: 'Notes', chronicle: 'Chronicle', maps: 'Maps' }
             return (
               <button
                 key={tab}
@@ -595,6 +597,11 @@ export default function App() {
         {/* ════ CHRONICLE TAB ════ */}
         {activeTab === 'chronicle' && (
           <ChronicleTab char={char} onChange={update} />
+        )}
+
+        {/* ════ MAPS TAB ════ */}
+        {activeTab === 'maps' && (
+          <MapsTab char={char} onChange={update} />
         )}
 
         {/* ════ BACKGROUND TAB ════ */}

@@ -81,6 +81,35 @@ export interface InventoryItem {
   source?: string
 }
 
+// ── Maps ─────────────────────────────────────────────────────────────────────
+
+export type AnnotationType = 'path' | 'pin' | 'text'
+
+export interface MapAnnotation {
+  id: string
+  type: AnnotationType
+  x: number   // normalized 0-1 (image-relative)
+  y: number
+  // path
+  points?: Array<{ x: number; y: number }>
+  strokeColor?: string
+  strokeWidth?: number  // image-space pixels
+  // pin
+  label?: string
+  pinColor?: string
+  // text
+  text?: string
+  textColor?: string
+  fontSize?: number     // image-space pixels
+}
+
+export interface MapEntry {
+  id: string
+  name: string
+  // Image stored separately in localStorage as dnd5e_map_img_<id>
+  annotations: MapAnnotation[]
+}
+
 export type ChangeCategory = 'combat' | 'inventory' | 'magic' | 'progression' | 'note'
 
 export interface ChangelogEntry {
@@ -202,6 +231,9 @@ export interface Character {
   characterGrowth: string
   notes: string            // legacy — migrated on load
   noteTree: NoteNode[]
+
+  // Maps
+  maps: MapEntry[]
 
   // Chronicle / changelog
   changelog: ChangelogEntry[]
