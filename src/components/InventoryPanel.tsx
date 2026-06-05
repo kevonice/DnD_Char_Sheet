@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { InventoryItem } from '../types'
 import { v4 as uuid } from '../uuid'
 import { fetchWeapons, fetchArmor, fetchGear, fetchMiscItems, matchesSourceGroups, SOURCE_GROUPS, DEFAULT_SOURCE_GROUPS, type SourceGroup } from '../data/fiveEtools'
@@ -91,6 +91,31 @@ export default function InventoryPanel({ inventory, str, onChange }: Props) {
   const [searching, setSearching] = useState<Category | null>(null)
   const [activeGroups, setActiveGroups] = useState<SourceGroup[]>(DEFAULT_SOURCE_GROUPS)
   const [confirmRemove, setConfirmRemove] = useState<InventoryItem | null>(null)
+  const searchRef = useRef<HTMLDivElement>(null)
+
+  // Close the search field on: click outside, browser tab hidden, or Escape key
+  useEffect(() => {
+    if (!searching) return
+    function onMouseDown(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearching(null)
+      }
+    }
+    function onVisibilityChange() {
+      if (document.hidden) setSearching(null)
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setSearching(null)
+    }
+    document.addEventListener('mousedown', onMouseDown)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [searching])
 
   const [dbs, setDbs] = useState<Record<Category, InventoryItem[]>>({ weapon: [], armor: [], gear: [], misc: [] })
   const [loading, setLoading] = useState<Record<Category, boolean>>({ weapon: true, armor: true, gear: true, misc: true })
@@ -342,6 +367,7 @@ export default function InventoryPanel({ inventory, str, onChange }: Props) {
 
               {/* Search / add row */}
               {searching === cat ? (
+                <div ref={searchRef}>
                 <Autocomplete
                   options={filtered}
                   getLabel={w => w.name}
@@ -379,6 +405,7 @@ export default function InventoryPanel({ inventory, str, onChange }: Props) {
                   }
                   onSelect={w => { add({ ...w, id: uuid() }); setSearching(null) }}
                 />
+                </div>
               ) : (
                 <div className="flex gap-1">
                   <button
