@@ -103,7 +103,7 @@ export default function ProficienciesPanel({ char, onChange }: Props) {
                         value={p.category}
                         onChange={e => updateProficiency(p.id, { category: e.target.value as ProficiencyCategory })}
                         className="rounded text-[10px] px-1 cursor-pointer focus:outline-none border-0"
-                        style={{ background: '#1c1108', color: '#fcd34d' }}
+                        style={{ background: 'var(--color-amber-950)', color: 'var(--color-amber-300)' }}
                       >
                         {CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
                       </select>
@@ -130,7 +130,7 @@ export default function ProficienciesPanel({ char, onChange }: Props) {
             value={newProfCat}
             onChange={e => setNewProfCat(e.target.value as ProficiencyCategory)}
             className="rounded-lg text-xs px-1.5 py-1 cursor-pointer focus:outline-none border border-amber-700/30"
-            style={{ background: '#1c1108', color: '#fcd34d' }}
+            style={{ background: 'var(--color-amber-950)', color: 'var(--color-amber-300)' }}
           >
             {CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
           </select>
