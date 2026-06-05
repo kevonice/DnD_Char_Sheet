@@ -93,7 +93,9 @@ export default function InventoryPanel({ inventory, str, onChange }: Props) {
   const [confirmRemove, setConfirmRemove] = useState<InventoryItem | null>(null)
   const searchRef = useRef<HTMLDivElement>(null)
 
-  // Close the search field on: click outside, browser tab hidden, or Escape key
+  // Close the search field on: click outside or Escape key.
+  // Intentionally NOT closing on browser tab switch — the query should persist
+  // so players can look something up elsewhere and return to where they were.
   useEffect(() => {
     if (!searching) return
     function onMouseDown(e: MouseEvent) {
@@ -101,18 +103,13 @@ export default function InventoryPanel({ inventory, str, onChange }: Props) {
         setSearching(null)
       }
     }
-    function onVisibilityChange() {
-      if (document.hidden) setSearching(null)
-    }
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') setSearching(null)
     }
     document.addEventListener('mousedown', onMouseDown)
-    document.addEventListener('visibilitychange', onVisibilityChange)
     document.addEventListener('keydown', onKeyDown)
     return () => {
       document.removeEventListener('mousedown', onMouseDown)
-      document.removeEventListener('visibilitychange', onVisibilityChange)
       document.removeEventListener('keydown', onKeyDown)
     }
   }, [searching])
