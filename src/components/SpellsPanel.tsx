@@ -72,7 +72,8 @@ export default function SpellsPanel({ char, onChange }: Props) {
           <select
             value={char.spellcastingAbility}
             onChange={e => onChange({ spellcastingAbility: e.target.value as any })}
-            className="bg-amber-950/80 text-amber-100 text-sm text-center w-full rounded cursor-pointer focus:outline-none"
+            className="text-sm text-center w-full rounded cursor-pointer focus:outline-none border-0"
+            style={{ background: '#1c1108', color: '#fef3c7' }}
           >
             <option value="">—</option>
             {ABILITY_KEYS.map(k => (
