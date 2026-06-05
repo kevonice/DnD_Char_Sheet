@@ -182,5 +182,11 @@ export interface Character {
   portrait?: string   // data URL or https URL
 
   // Appearance override — null means auto from class theme
-  appearanceOverride?: { hue: number; chroma: number; accent: string; bgHex?: string } | null
+  appearanceOverride?: {
+    hue: number; chroma: number; accent: string
+    bgHex?: string
+    bgGradient?: string   // CSS gradient string (preset)
+    bgBlur?: number       // px, 0-20
+    bgOverlay?: number    // 0-1 darkness overlay opacity
+  } | null
 }

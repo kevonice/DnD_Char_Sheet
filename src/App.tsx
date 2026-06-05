@@ -19,7 +19,7 @@ import PortraitUploader from './components/PortraitUploader'
 import ClassTab from './components/ClassTab'
 import NotesTab from './components/NotesTab'
 import AppearancePanel, { overrideToTheme } from './components/AppearancePanel'
-import { themeForClass, themeVars, bgVars, DEFAULT_THEME } from './data/classThemes'
+import { themeForClassAndSubclass, themeVars, bgVars, DEFAULT_THEME } from './data/classThemes'
 
 const STORAGE_KEY    = 'dnd5e_character'
 const CREATED_KEY    = 'dnd5e_created'   // flag: has user completed wizard or chosen manual?
@@ -107,8 +107,22 @@ export default function App() {
   }
 
   const pb = proficiencyBonus(char.level)
-  const classTheme = themeForClass(char.class)
+  const classTheme = themeForClassAndSubclass(char.class, char.subclass)
   const theme = char.appearanceOverride ? overrideToTheme(char.appearanceOverride) : classTheme
+
+  // Background image stored separately — excluded from character JSON exports
+  const BG_IMAGE_KEY = 'dnd5e_bgImage'
+  const [bgImage, setBgImageState] = useState<string | null>(() => localStorage.getItem(BG_IMAGE_KEY))
+  function setBgImage(img: string | null) {
+    setBgImageState(img)
+    if (img) localStorage.setItem(BG_IMAGE_KEY, img)
+    else localStorage.removeItem(BG_IMAGE_KEY)
+  }
+
+  const bgGradient = char.appearanceOverride?.bgGradient ?? null
+  const bgBlur     = char.appearanceOverride?.bgBlur     ?? 12
+  const bgOverlay  = char.appearanceOverride?.bgOverlay  ?? 0.6
+  const hasBg = bgImage || bgGradient
 
   const derivedAttacks = char.inventory
     .filter(it => it.category === 'weapon' && it.equipped)
@@ -156,7 +170,7 @@ export default function App() {
 
   return (
     <div
-      className="min-h-screen text-amber-100 font-sans"
+      className="min-h-screen text-amber-100 font-sans relative"
       style={{
         ...themeVars(theme),
         ...(char.appearanceOverride?.bgHex ? bgVars(char.appearanceOverride.bgHex) : {}),
@@ -167,6 +181,24 @@ export default function App() {
             : `oklch(15% ${(0.04 * theme.chroma).toFixed(3)} ${theme.hue})`,
       }}
     >
+      {/* ── Background image / gradient layer ── */}
+      {hasBg && (
+        <>
+          <div
+            style={{
+              position: 'fixed', inset: 0, zIndex: 0,
+              backgroundImage: bgImage ? `url(${bgImage})` : bgGradient!,
+              backgroundSize: 'cover', backgroundPosition: 'center',
+              filter: `blur(${bgBlur}px)`,
+              transform: 'scale(1.08)',
+            }}
+          />
+          <div style={{ position: 'fixed', inset: 0, zIndex: 1, backgroundColor: `rgba(0,0,0,${bgOverlay})` }} />
+        </>
+      )}
+
+      {/* All content sits above the background layers */}
+      <div style={{ position: 'relative', zIndex: 2 }}>
 
       {/* ── Banner header ── */}
       <header
@@ -215,6 +247,8 @@ export default function App() {
                 override={char.appearanceOverride}
                 onChangeOverride={appearanceOverride => update({ appearanceOverride })}
                 currentClassTheme={classTheme}
+                bgImage={bgImage}
+                onBgImage={setBgImage}
               />
               {/* Export */}
               <button
@@ -520,6 +554,8 @@ export default function App() {
       <footer className="border-t border-amber-900/30 mt-8 px-6 py-2 text-center text-[9px] text-amber-800/40 tracking-wide">
         Autosaved · {char.name || 'Unnamed'} · Level {char.level} {char.class || 'Adventurer'}
       </footer>
+
+      </div>{/* end content z-index wrapper */}
     </div>
   )
 }

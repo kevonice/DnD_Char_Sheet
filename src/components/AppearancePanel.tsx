@@ -93,7 +93,7 @@ export const PRESETS: { key: string; theme: ClassTheme }[] = [
   { key: 'artificer', theme: { name:'Artificer', hue:188, chroma:0.9,  accent:'#14b8a6', accentSoft:'rgba(20,184,166,0.18)', glyph:'⚙️' } },
 ]
 
-// ── Background presets ────────────────────────────────────────────────────────
+// ── Solid dark colour presets ─────────────────────────────────────────────────
 
 export const BG_PRESETS: { label: string; hex: string }[] = [
   { label: 'Obsidian',  hex: '#130e06' },
@@ -105,15 +105,32 @@ export const BG_PRESETS: { label: string; hex: string }[] = [
   { label: 'Pure Black',hex: '#000000' },
 ]
 
+// ── CSS gradient presets (used as background-image) ───────────────────────────
+
+export const GRADIENT_PRESETS: { label: string; emoji: string; css: string }[] = [
+  { label: 'Candlelight',    emoji: '🕯️', css: 'radial-gradient(ellipse at 35% 75%, #2a1404 0%, #120800 55%, #050200 100%)' },
+  { label: 'Deep Forest',    emoji: '🌲', css: 'radial-gradient(ellipse at 50% 100%, #0b2010 0%, #061008 55%, #010402 100%)' },
+  { label: 'Graveyard Mist', emoji: '⚰️', css: 'radial-gradient(ellipse at 50% 80%, #0e1812 0%, #070d09 45%, #020503 100%), linear-gradient(to top, #0a1209 0%, #030705 100%)' },
+  { label: 'Arcane Void',    emoji: '🔮', css: 'radial-gradient(ellipse at 50% 30%, #18082a 0%, #0b0318 60%, #030008 100%)' },
+  { label: 'Blood Moon',     emoji: '🌑', css: 'radial-gradient(ellipse at 50% 5%, #2a0505 0%, #140202 55%, #040000 100%)' },
+  { label: 'Storm Clouds',   emoji: '⛈️', css: 'radial-gradient(ellipse at 70% 15%, #08101e 0%, #040810 60%, #010204 100%)' },
+  { label: 'Frozen Wastes',  emoji: '❄️', css: 'radial-gradient(ellipse at 50% 0%, #06101e 0%, #040c1a 60%, #010408 100%)' },
+  { label: 'Ancient Parchment',emoji:'📜',css: 'radial-gradient(ellipse at 50% 50%, #1c1407 0%, #100b03 60%, #050300 100%)' },
+]
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
+type Override = { hue: number; chroma: number; accent: string; bgHex?: string; bgGradient?: string; bgBlur?: number; bgOverlay?: number }
+
 interface Props {
-  override: { hue: number; chroma: number; accent: string; bgHex?: string } | null | undefined
-  onChangeOverride: (o: { hue: number; chroma: number; accent: string; bgHex?: string } | null) => void
+  override: Override | null | undefined
+  onChangeOverride: (o: Override | null) => void
   currentClassTheme: ClassTheme
+  bgImage: string | null
+  onBgImage: (img: string | null) => void
 }
 
-export default function AppearancePanel({ override, onChangeOverride, currentClassTheme }: Props) {
+export default function AppearancePanel({ override, onChangeOverride, currentClassTheme, bgImage, onBgImage }: Props) {
   const [open, setOpen] = useState(false)
   const [hexInput, setHexInput] = useState(override?.accent ?? '')
   const [hexError, setHexError] = useState(false)
@@ -142,7 +159,7 @@ export default function AppearancePanel({ override, onChangeOverride, currentCla
   }, [open])
 
   // Merge a partial change into the existing override, preserving other fields
-  function mergeOverride(patch: Partial<{ hue: number; chroma: number; accent: string; bgHex: string }>) {
+  function mergeOverride(patch: Partial<Override>) {
     const base = override ?? { hue: currentClassTheme.hue, chroma: currentClassTheme.chroma, accent: currentClassTheme.accent }
     onChangeOverride({ ...base, ...patch })
   }
@@ -260,50 +277,104 @@ export default function AppearancePanel({ override, onChangeOverride, currentCla
             {hexError && <p className="text-[10px] text-red-400/70 mt-1">Enter a valid hex colour, e.g. #ff6b35</p>}
           </div>
 
-          {/* ── Background colour ── */}
+          {/* ── Background colour (solid) ── */}
           <div>
-            <p className="text-[9px] uppercase tracking-widest text-amber-700/50 mb-2">Background colour</p>
-            {/* Presets */}
+            <p className="text-[9px] uppercase tracking-widest text-amber-700/50 mb-2">Base background colour</p>
             <div className="flex flex-wrap gap-1.5 mb-2">
               {BG_PRESETS.map(({ label, hex }) => (
-                <button
-                  key={hex}
-                  title={label}
+                <button key={hex} title={label}
                   onClick={() => { mergeOverride({ bgHex: hex }); setBgInput(hex) }}
-                  className={`w-6 h-6 rounded border-2 transition-all hover:scale-110 ${
-                    activeBg === hex ? 'border-white/60 scale-110' : 'border-transparent'
-                  }`}
-                  style={{ backgroundColor: hex, boxShadow: activeBg === hex ? `0 0 6px ${hex}` : undefined }}
+                  className={`w-6 h-6 rounded border-2 transition-all hover:scale-110 ${activeBg === hex ? 'border-white/60 scale-110' : 'border-transparent'}`}
+                  style={{ backgroundColor: hex }}
                 />
               ))}
             </div>
-            {/* Custom */}
             <div className="flex gap-2 items-center">
-              <input
-                type="color"
-                value={activeBg}
-                onChange={e => {
-                  setBgInput(e.target.value)
-                  setBgError(false)
-                  mergeOverride({ bgHex: e.target.value })
-                }}
+              <input type="color" value={activeBg}
+                onChange={e => { setBgInput(e.target.value); mergeOverride({ bgHex: e.target.value }) }}
                 className="w-8 h-8 rounded cursor-pointer border-0 bg-transparent p-0"
               />
-              <input
-                value={bgInput}
-                onChange={e => { setBgInput(e.target.value); setBgError(false) }}
-                onBlur={() => bgInput && applyBg(bgInput)}
-                onKeyDown={e => e.key === 'Enter' && applyBg(bgInput)}
-                placeholder="#130e06"
-                maxLength={7}
-                className={`flex-1 bg-amber-950/40 border rounded px-2 py-1 text-xs font-mono text-amber-200 focus:outline-none transition-colors ${
-                  bgError ? 'border-red-500/60 text-red-400' : 'border-amber-800/40 focus:border-amber-600/60'
-                }`}
+              <input value={bgInput} onChange={e => { setBgInput(e.target.value); setBgError(false) }}
+                onBlur={() => bgInput && applyBg(bgInput)} onKeyDown={e => e.key === 'Enter' && applyBg(bgInput)}
+                placeholder="#130e06" maxLength={7}
+                className={`flex-1 bg-amber-950/40 border rounded px-2 py-1 text-xs font-mono text-amber-200 focus:outline-none transition-colors ${bgError ? 'border-red-500/60 text-red-400' : 'border-amber-800/40 focus:border-amber-600/60'}`}
               />
-              <div className="w-6 h-6 rounded-md border border-white/20 flex-shrink-0" style={{ backgroundColor: activeBg }} />
             </div>
             {bgError && <p className="text-[10px] text-red-400/70 mt-1">Enter a valid hex colour, e.g. #07091a</p>}
           </div>
+
+          {/* ── Background image / gradient ── */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[9px] uppercase tracking-widest text-amber-700/50">Background scene</p>
+              {(bgImage || override?.bgGradient) && (
+                <button onClick={() => { onBgImage(null); mergeOverride({ bgGradient: undefined }) }}
+                  className="text-[9px] text-amber-700/50 hover:text-red-400 underline decoration-dotted">
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {/* Gradient presets */}
+            <div className="grid grid-cols-4 gap-1.5 mb-2">
+              {GRADIENT_PRESETS.map(({ label, emoji, css }) => {
+                const active = override?.bgGradient === css && !bgImage
+                return (
+                  <button key={label} title={label}
+                    onClick={() => { onBgImage(null); mergeOverride({ bgGradient: css }) }}
+                    className={`h-10 rounded-lg border-2 text-sm transition-all hover:scale-105 overflow-hidden ${active ? 'border-white/60 scale-105' : 'border-transparent'}`}
+                    style={{ backgroundImage: css }}
+                  >
+                    <span style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.8))' }}>{emoji}</span>
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Image upload */}
+            <label className="flex items-center gap-2 px-3 py-2 bg-amber-950/40 border border-dashed border-amber-800/40 rounded-lg cursor-pointer hover:border-amber-600/50 transition-colors">
+              <span className="text-xs text-amber-600/60">{bgImage ? '✓ Image set — click to replace' : '↑ Upload your own image'}</span>
+              <input type="file" accept="image/*" className="hidden"
+                onChange={e => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  const reader = new FileReader()
+                  reader.onload = ev => {
+                    onBgImage(ev.target?.result as string)
+                    mergeOverride({ bgGradient: undefined })
+                  }
+                  reader.readAsDataURL(file)
+                  e.target.value = ''
+                }}
+              />
+            </label>
+          </div>
+
+          {/* ── Blur & overlay sliders ── */}
+          {(bgImage || override?.bgGradient) && (
+            <div className="space-y-3">
+              <div>
+                <div className="flex justify-between mb-1">
+                  <span className="text-[9px] uppercase tracking-widest text-amber-700/50">Blur</span>
+                  <span className="text-[9px] text-amber-700/40">{override?.bgBlur ?? 12}px</span>
+                </div>
+                <input type="range" min={0} max={20} step={1} value={override?.bgBlur ?? 12}
+                  onChange={e => mergeOverride({ bgBlur: Number(e.target.value) })}
+                  className="w-full accent-amber-500 h-1"
+                />
+              </div>
+              <div>
+                <div className="flex justify-between mb-1">
+                  <span className="text-[9px] uppercase tracking-widest text-amber-700/50">Darkness overlay</span>
+                  <span className="text-[9px] text-amber-700/40">{Math.round((override?.bgOverlay ?? 0.6) * 100)}%</span>
+                </div>
+                <input type="range" min={0} max={1} step={0.05} value={override?.bgOverlay ?? 0.6}
+                  onChange={e => mergeOverride({ bgOverlay: Number(e.target.value) })}
+                  className="w-full accent-amber-500 h-1"
+                />
+              </div>
+            </div>
+          )}
 
           <p className="text-[9px] text-amber-800/50">Use colour picker or type any hex code. Press Enter to apply.</p>
         </div>
