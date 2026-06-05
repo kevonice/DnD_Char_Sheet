@@ -180,4 +180,7 @@ export interface Character {
   // Inspiration
   inspiration: boolean
   portrait?: string   // data URL or https URL
+
+  // Appearance override — null means auto from class theme
+  appearanceOverride?: { hue: number; chroma: number; accent: string } | null
 }

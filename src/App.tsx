@@ -18,6 +18,7 @@ import FeaturesPanel from './components/FeaturesPanel'
 import PortraitUploader from './components/PortraitUploader'
 import ClassTab from './components/ClassTab'
 import NotesTab from './components/NotesTab'
+import AppearancePanel, { overrideToTheme } from './components/AppearancePanel'
 import { themeForClass, themeVars, DEFAULT_THEME } from './data/classThemes'
 
 const STORAGE_KEY    = 'dnd5e_character'
@@ -106,7 +107,8 @@ export default function App() {
   }
 
   const pb = proficiencyBonus(char.level)
-  const theme = themeForClass(char.class)
+  const classTheme = themeForClass(char.class)
+  const theme = char.appearanceOverride ? overrideToTheme(char.appearanceOverride) : classTheme
 
   const derivedAttacks = char.inventory
     .filter(it => it.category === 'weapon' && it.equipped)
@@ -205,6 +207,12 @@ export default function App() {
               >
                 ★ Inspiration
               </button>
+              {/* Appearance */}
+              <AppearancePanel
+                override={char.appearanceOverride}
+                onChangeOverride={appearanceOverride => update({ appearanceOverride })}
+                currentClassTheme={classTheme}
+              />
               {/* Export */}
               <button
                 onClick={exportCharacter}
