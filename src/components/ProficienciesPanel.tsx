@@ -102,12 +102,17 @@ export default function ProficienciesPanel({ char, onChange }: Props) {
                       <select
                         value={p.category}
                         onChange={e => updateProficiency(p.id, { category: e.target.value as ProficiencyCategory })}
+                        onMouseDown={e => e.preventDefault()}
                         className="rounded text-[10px] px-1 cursor-pointer focus:outline-none border-0"
                         style={{ background: 'var(--color-amber-950)', color: 'var(--color-amber-300)' }}
                       >
                         {CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
                       </select>
-                      <button onClick={() => removeProficiency(p.id)} className="text-red-500/60 hover:text-red-400 text-[10px] ml-0.5">✕</button>
+                      <button
+                        onMouseDown={e => e.preventDefault()}
+                        onClick={() => removeProficiency(p.id)}
+                        className="text-red-500/60 hover:text-red-400 text-[10px] ml-0.5"
+                      >✕</button>
                     </div>
                   ) : (
                     <button
@@ -176,7 +181,11 @@ export default function ProficienciesPanel({ char, onChange }: Props) {
                   placeholder="notes…"
                   className="bg-transparent text-amber-500 text-[10px] outline-none w-20 italic"
                 />
-                <button onClick={() => removeLanguage(lang.id)} className="text-red-500/60 hover:text-red-400 text-[10px] ml-0.5">✕</button>
+                <button
+                  onMouseDown={e => e.preventDefault()}
+                  onClick={() => removeLanguage(lang.id)}
+                  className="text-red-500/60 hover:text-red-400 text-[10px] ml-0.5"
+                >✕</button>
               </div>
             ) : (
               <button
