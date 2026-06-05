@@ -1,5 +1,12 @@
 export type AbilityKey = 'str' | 'dex' | 'con' | 'int' | 'wis' | 'cha'
 
+export interface NoteNode {
+  id: string
+  title: string
+  content: string
+  children: NoteNode[]
+}
+
 export interface AbilityScores {
   str: number
   dex: number
@@ -167,7 +174,8 @@ export interface Character {
   flaws: string
   backstory: string
   characterGrowth: string
-  notes: string
+  notes: string            // legacy — migrated on load
+  noteTree: NoteNode[]
 
   // Inspiration
   inspiration: boolean

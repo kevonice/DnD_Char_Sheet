@@ -17,6 +17,7 @@ import CharacterCreator from './components/CharacterCreator'
 import FeaturesPanel from './components/FeaturesPanel'
 import PortraitUploader from './components/PortraitUploader'
 import ClassTab from './components/ClassTab'
+import NotesTab from './components/NotesTab'
 import { themeForClass, themeVars, DEFAULT_THEME } from './data/classThemes'
 
 const STORAGE_KEY    = 'dnd5e_character'
@@ -32,6 +33,11 @@ function loadCharacter(): Character {
       if (!merged.passiveTraits?.length && merged.features) {
         merged.passiveTraits = [{ id: uuid(), name: 'Traits', description: merged.features }]
       }
+      // Migrate old notes string → first NoteNode
+      if (!merged.noteTree?.length && merged.notes) {
+        merged.noteTree = [{ id: uuid(), title: 'Notes', content: merged.notes, children: [] }]
+      }
+      if (!merged.noteTree) merged.noteTree = []
       return merged
     }
   } catch {}
@@ -62,7 +68,7 @@ function Panel({ children, className = '' }: { children: React.ReactNode; classN
   )
 }
 
-type Tab = 'main' | 'spells' | 'backstory' | 'class'
+type Tab = 'main' | 'spells' | 'backstory' | 'class' | 'notes'
 
 export default function App() {
   const [char, setChar] = useState<Character>(loadCharacter)
@@ -273,9 +279,9 @@ export default function App() {
       {/* ── Tab bar ── */}
       <nav className="border-b border-amber-800/25 bg-amber-950/30">
         <div className="max-w-[1400px] mx-auto flex">
-          {(['main', 'spells', 'class', 'backstory'] as Tab[]).map(tab => {
+          {(['main', 'spells', 'class', 'backstory', 'notes'] as Tab[]).map(tab => {
             const isActive = activeTab === tab
-            const labels: Record<Tab, string> = { main: 'Character', spells: 'Spells', class: 'Class', backstory: 'Background' }
+            const labels: Record<Tab, string> = { main: 'Character', spells: 'Spells', class: 'Class', backstory: 'Background', notes: 'Notes' }
             return (
               <button
                 key={tab}
@@ -434,11 +440,6 @@ export default function App() {
                 <TextArea label="" value={char.proficiencies} onChange={v => update({ proficiencies: v })} rows={3} />
               </Panel>
 
-              <Panel>
-                <SectionHeader title="Notes" />
-                <TextArea label="" value={char.notes} onChange={v => update({ notes: v })} rows={4} />
-              </Panel>
-
             </div>
           </div>
         )}
@@ -451,6 +452,11 @@ export default function App() {
         {/* ════ CLASS TAB ════ */}
         {activeTab === 'class' && (
           <ClassTab className={char.class} subclass={char.subclass} />
+        )}
+
+        {/* ════ NOTES TAB ════ */}
+        {activeTab === 'notes' && (
+          <NotesTab noteTree={char.noteTree ?? []} onChange={noteTree => update({ noteTree })} />
         )}
 
         {/* ════ BACKGROUND TAB ════ */}

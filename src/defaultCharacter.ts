@@ -63,6 +63,7 @@ export function makeDefaultCharacter(): Character {
     backstory: '',
     characterGrowth: '',
     notes: '',
+    noteTree: [],
     inspiration: false,
   }
 }
