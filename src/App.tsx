@@ -19,8 +19,10 @@ import PortraitUploader from './components/PortraitUploader'
 import ClassTab from './components/ClassTab'
 import NotesTab from './components/NotesTab'
 import ProficienciesPanel from './components/ProficienciesPanel'
+import ChronicleTab from './components/ChronicleTab'
 import AppearancePanel, { overrideToTheme } from './components/AppearancePanel'
 import { themeForClassAndSubclass, themeVars, bgVars, DEFAULT_THEME } from './data/classThemes'
+import { detectChanges } from './changelog'
 
 const STORAGE_KEY    = 'dnd5e_character'
 const CREATED_KEY    = 'dnd5e_created'   // flag: has user completed wizard or chosen manual?
@@ -47,6 +49,7 @@ function loadCharacter(): Character {
       }
       if (!merged.proficiencyList) merged.proficiencyList = []
       if (!merged.languages) merged.languages = []
+      if (!merged.changelog) merged.changelog = []
       return merged
     }
   } catch {}
@@ -77,7 +80,7 @@ function Panel({ children, className = '' }: { children: React.ReactNode; classN
   )
 }
 
-type Tab = 'main' | 'spells' | 'backstory' | 'class' | 'notes'
+type Tab = 'main' | 'spells' | 'backstory' | 'class' | 'notes' | 'chronicle'
 
 export default function App() {
   const [char, setChar] = useState<Character>(loadCharacter)
@@ -101,7 +104,17 @@ export default function App() {
   }, [char])
 
   function update(updates: Partial<Character>) {
-    setChar(prev => ({ ...prev, ...updates }))
+    setChar(prev => {
+      const next = { ...prev, ...updates }
+      // Don't log changes when the changelog itself is the only thing updated
+      const keys = Object.keys(updates) as (keyof Character)[]
+      if (keys.length === 1 && keys[0] === 'changelog') return next
+      const newEntries = detectChanges(prev, next)
+      if (newEntries.length > 0) {
+        next.changelog = [...(prev.changelog ?? []), ...newEntries]
+      }
+      return next
+    })
   }
 
   function handleCreatorComplete(updates: Partial<Character>) {
@@ -401,7 +414,7 @@ export default function App() {
         <div className="max-w-[1400px] mx-auto flex">
           {(['main', 'spells', 'class', 'backstory', 'notes'] as Tab[]).map(tab => {
             const isActive = activeTab === tab
-            const labels: Record<Tab, string> = { main: 'Character', spells: 'Spells', class: 'Class', backstory: 'Background', notes: 'Notes' }
+            const labels: Record<Tab, string> = { main: 'Character', spells: 'Spells', class: 'Class', backstory: 'Background', notes: 'Notes', chronicle: 'Chronicle' }
             return (
               <button
                 key={tab}
@@ -577,6 +590,11 @@ export default function App() {
         {/* ════ NOTES TAB ════ */}
         {activeTab === 'notes' && (
           <NotesTab noteTree={char.noteTree ?? []} onChange={noteTree => update({ noteTree })} />
+        )}
+
+        {/* ════ CHRONICLE TAB ════ */}
+        {activeTab === 'chronicle' && (
+          <ChronicleTab char={char} onChange={update} />
         )}
 
         {/* ════ BACKGROUND TAB ════ */}

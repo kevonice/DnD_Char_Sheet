@@ -81,6 +81,16 @@ export interface InventoryItem {
   source?: string
 }
 
+export type ChangeCategory = 'combat' | 'inventory' | 'magic' | 'progression' | 'note'
+
+export interface ChangelogEntry {
+  id: string
+  timestamp: number   // Date.now()
+  category: ChangeCategory
+  summary: string
+  detail?: string
+}
+
 export type ProficiencyCategory = 'armor' | 'weapon' | 'tool' | 'other'
 
 export interface ProficiencyEntry {
@@ -192,6 +202,9 @@ export interface Character {
   characterGrowth: string
   notes: string            // legacy — migrated on load
   noteTree: NoteNode[]
+
+  // Chronicle / changelog
+  changelog: ChangelogEntry[]
 
   // Inspiration
   inspiration: boolean

@@ -66,6 +66,7 @@ export function makeDefaultCharacter(): Character {
     characterGrowth: '',
     notes: '',
     noteTree: [],
+    changelog: [],
     inspiration: false,
   }
 }
