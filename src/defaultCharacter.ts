@@ -21,6 +21,7 @@ export function makeDefaultCharacter(): Character {
     speed: 30,
     initiative: 0,
     hitDice: '1d8',
+    maxHitDice: '1d8',
 
     deathSaveSuccesses: 0,
     deathSaveFailures: 0,

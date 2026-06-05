@@ -21,6 +21,8 @@ export default function CombatStats({ char, onChange }: Props) {
   const initDisplay = initMod >= 0 ? `+${initMod}` : `${initMod}`
   const hpPct = char.maxHp > 0 ? Math.max(0, Math.min(1, char.currentHp / char.maxHp)) : 0
   const hpColor = hpPct > 0.5 ? 'bg-green-500' : hpPct > 0.25 ? 'bg-yellow-500' : 'bg-red-500'
+  // Temp HP bar: blue segment appended after current HP, capped so total bar ≤ 100%
+  const tempPct = char.maxHp > 0 ? Math.min(char.tempHp / char.maxHp, 1 - hpPct) : 0
 
   return (
     <div className="space-y-3">
@@ -46,7 +48,12 @@ export default function CombatStats({ char, onChange }: Props) {
               <input
                 type="number"
                 value={char.maxHp}
-                onChange={e => onChange({ maxHp: Number(e.target.value) })}
+                onChange={e => {
+                const newMax = Number(e.target.value)
+                const updates: Partial<Character> = { maxHp: newMax }
+                if (char.currentHp > newMax) updates.currentHp = newMax
+                onChange(updates)
+              }}
                 className="text-lg font-bold bg-transparent text-amber-100 text-center w-full focus:outline-none"
               />
             </div>
@@ -61,11 +68,15 @@ export default function CombatStats({ char, onChange }: Props) {
             </div>
           </div>
         </div>
-        {/* HP bar */}
-        <div className="mt-3 h-1.5 bg-amber-950 rounded-full overflow-hidden border border-amber-900/60">
+        {/* HP bar — green/yellow/red for current HP, blue extension for temp HP */}
+        <div className="mt-3 h-1.5 bg-amber-950 rounded-full overflow-hidden border border-amber-900/60 flex">
           <div
-            className={`h-full rounded-full transition-all duration-300 ${hpColor}`}
+            className={`h-full transition-all duration-300 ${hpColor}`}
             style={{ width: `${hpPct * 100}%` }}
+          />
+          <div
+            className="h-full bg-blue-400 transition-all duration-300"
+            style={{ width: `${tempPct * 100}%` }}
           />
         </div>
       </div>
@@ -102,7 +113,18 @@ export default function CombatStats({ char, onChange }: Props) {
       {/* Hit dice + Death saves */}
       <div className="grid grid-cols-2 gap-2">
         <div className="bg-amber-950/50 border border-amber-800/40 rounded-xl p-3">
-          <span className="text-[9px] uppercase tracking-widest text-amber-600/60 block mb-1.5">Hit Dice</span>
+          <div className="flex items-start justify-between gap-1 mb-1.5">
+            <span className="text-[9px] uppercase tracking-widest text-amber-600/60">Hit Dice</span>
+            <div className="flex flex-col items-end">
+              <span className="text-[8px] uppercase tracking-widest text-amber-700/40 leading-none">Max</span>
+              <input
+                value={char.maxHitDice ?? char.hitDice}
+                onChange={e => onChange({ maxHitDice: e.target.value })}
+                className="bg-transparent text-amber-500/70 text-[11px] text-right w-14 focus:outline-none font-mono"
+                placeholder="10d8"
+              />
+            </div>
+          </div>
           <input
             value={char.hitDice}
             onChange={e => onChange({ hitDice: e.target.value })}

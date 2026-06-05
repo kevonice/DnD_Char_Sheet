@@ -124,6 +124,7 @@ export interface Character {
   speed: number
   initiative: number // manual override; auto from dex otherwise
   hitDice: string
+  maxHitDice: string
 
   // Death saves
   deathSaveSuccesses: number
