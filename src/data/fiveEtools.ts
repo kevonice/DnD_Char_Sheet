@@ -43,7 +43,55 @@ function bareCode(code: unknown): string {
 }
 
 // ---------------------------------------------------------------------------
-// Edition classification
+// Source grouping
+// ---------------------------------------------------------------------------
+
+export type SourceGroup = 'core' | '2024' | 'supplements' | 'adventures'
+
+export const SOURCE_GROUPS: Record<SourceGroup, { label: string; sources: Set<string> }> = {
+  core: {
+    label: 'Core (2014)',
+    sources: new Set(['PHB', 'DMG', 'MM']),
+  },
+  '2024': {
+    label: '2024',
+    sources: new Set(['XPHB', 'XDMG', 'XMM']),
+  },
+  supplements: {
+    label: 'Supplements',
+    sources: new Set([
+      'XGE', 'TCE', 'MPMM', 'MTF', 'VGM', 'FTD', 'BGG', 'BMT',
+      'ERLW', 'EGW', 'SCC', 'MOT', 'GGR', 'AAG', 'VRGR',
+      'WBtW', 'DSotDQ', 'PSA', 'PSI', 'PSK', 'PSZ', 'PSX',
+    ]),
+  },
+  adventures: {
+    label: 'Adventures',
+    sources: new Set([
+      'CoS', 'ToA', 'IDRotF', 'WDH', 'TftYP', 'GoS', 'PotA',
+      'CoA', 'QftIS', 'CM', 'SLW', 'HotB', 'KftGV', 'OoW',
+      'NRH-TLT', 'NRH-AT', 'DrDe-DaS', 'LMoP', 'OotA', 'SKT',
+      'RoT', 'HotDQ', 'PaBTSO', 'SjA', 'BAM',
+    ]),
+  },
+}
+
+export const DEFAULT_SOURCE_GROUPS: SourceGroup[] = ['core', 'supplements']
+
+export function matchesSourceGroups(source: string | undefined, groups: SourceGroup[]): boolean {
+  if (!source) return groups.includes('core') // sourceless items are core
+  const up = source.toUpperCase()
+  for (const g of groups) {
+    if (SOURCE_GROUPS[g].sources.has(up)) return true
+  }
+  // Fallback: anything not categorised shows under supplements
+  const known = Object.values(SOURCE_GROUPS).flatMap(g => [...g.sources])
+  if (!known.includes(up)) return groups.includes('supplements')
+  return false
+}
+
+// ---------------------------------------------------------------------------
+// Edition classification (kept for spell filtering)
 // ---------------------------------------------------------------------------
 
 export type Edition = '2014' | '2024' | 'all'

@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react'
 import type { InventoryItem } from '../types'
 import { v4 as uuid } from '../uuid'
-import { fetchWeapons, fetchArmor, fetchGear, fetchMiscItems, matchesEdition, type Edition } from '../data/fiveEtools'
+import { fetchWeapons, fetchArmor, fetchGear, fetchMiscItems, matchesSourceGroups, SOURCE_GROUPS, DEFAULT_SOURCE_GROUPS, type SourceGroup } from '../data/fiveEtools'
 import Autocomplete from './Autocomplete'
-import EditionToggle from './EditionToggle'
 
 interface Props {
   inventory: InventoryItem[]
@@ -90,7 +89,7 @@ function blankItem(category: Category): InventoryItem {
 export default function InventoryPanel({ inventory, str, onChange }: Props) {
   const [expanded, setExpanded]   = useState<string | null>(null)
   const [searching, setSearching] = useState<Category | null>(null)
-  const [edition, setEdition]     = useState<Edition>('2014')
+  const [activeGroups, setActiveGroups] = useState<SourceGroup[]>(DEFAULT_SOURCE_GROUPS)
   const [confirmRemove, setConfirmRemove] = useState<InventoryItem | null>(null)
 
   const [dbs, setDbs] = useState<Record<Category, InventoryItem[]>>({ weapon: [], armor: [], gear: [], misc: [] })
@@ -153,7 +152,7 @@ export default function InventoryPanel({ inventory, str, onChange }: Props) {
         const db      = dbs[cat]
         const isLoading = loading[cat]
         const meta    = CATEGORY_META[cat]
-        const filtered = db.filter(w => matchesEdition(w.source, edition))
+        const filtered = db.filter(w => matchesSourceGroups(w.source, activeGroups))
 
         return (
           <div key={cat}>
@@ -166,7 +165,7 @@ export default function InventoryPanel({ inventory, str, onChange }: Props) {
                   ? 'loading…'
                   : errors[cat]
                     ? <span className="text-red-400">⚠ {errors[cat]}</span>
-                    : `${db.length} in db · ${filtered.length} in ${edition}`}
+                    : `${db.length} in db · ${filtered.length} shown`}
               </span>
             </div>
 
@@ -354,7 +353,30 @@ export default function InventoryPanel({ inventory, str, onChange }: Props) {
                   loading={isLoading}
                   loadedCount={filtered.length}
                   placeholder={`Search ${meta.label.toLowerCase()}…`}
-                  toolbar={<EditionToggle value={edition} onChange={setEdition} />}
+                  toolbar={
+                    <div className="flex flex-wrap gap-1">
+                      {(Object.keys(SOURCE_GROUPS) as SourceGroup[]).map(g => {
+                        const on = activeGroups.includes(g)
+                        return (
+                          <button
+                            key={g}
+                            onClick={() => setActiveGroups(prev =>
+                              on
+                                ? prev.filter(x => x !== g)
+                                : [...prev, g]
+                            )}
+                            className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest border transition-colors ${
+                              on
+                                ? 'bg-amber-700/50 border-amber-600/60 text-amber-100'
+                                : 'border-amber-800/40 text-amber-700/50 hover:border-amber-600/40 hover:text-amber-500'
+                            }`}
+                          >
+                            {SOURCE_GROUPS[g].label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  }
                   onSelect={w => { add({ ...w, id: uuid() }); setSearching(null) }}
                 />
               ) : (
