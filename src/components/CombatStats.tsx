@@ -38,7 +38,7 @@ export default function CombatStats({ char, onChange }: Props) {
               type="number"
               value={char.currentHp}
               onFocus={e => e.target.select()}
-              onChange={e => onChange({ currentHp: Number(e.target.value) })}
+              onChange={e => onChange({ currentHp: Math.min(Number(e.target.value), char.maxHp) })}
               className={`text-5xl font-bold bg-transparent text-center w-full focus:outline-none leading-none ${
                 char.currentHp <= 0 ? 'text-red-400' : char.currentHp < char.maxHp / 2 ? 'text-yellow-400' : 'text-green-400'
               }`}
