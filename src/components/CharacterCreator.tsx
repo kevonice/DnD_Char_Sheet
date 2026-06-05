@@ -300,6 +300,10 @@ export default function CharacterCreator({ onComplete, onManual }: Props) {
       const savingThrows: Record<string, boolean> = {}
       for (const key of selectedClass.savingThrows) savingThrows[key] = true
       if (Object.keys(savingThrows).length) updates.savingThrows = savingThrows as any
+      // Starting equipment → inventory
+      if (selectedClass.startingEquipment.length) {
+        updates.inventory = selectedClass.startingEquipment
+      }
     }
     if (passiveTraits.length) updates.passiveTraits = passiveTraits
     if (profParts.length)     updates.proficiencies = profParts.join('\n')

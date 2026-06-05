@@ -1,5 +1,8 @@
 // Data fetching for the character creation wizard (races + classes)
 
+import { v4 as uuid } from '../uuid'
+import type { InventoryItem } from '../types'
+
 const BASE = 'https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/main/data'
 
 // ---------------------------------------------------------------------------
@@ -158,6 +161,49 @@ export interface CreatorClass {
   savingThrows: string[]
   armorProfs: string[]
   weaponProfs: string[]
+  startingEquipment: InventoryItem[]
+}
+
+// Parse "name|source" string into a display name
+function parseItemName(raw: string): string {
+  return raw.split('|')[0].replace(/\((\d+)\)$/, '').trim()
+    .replace(/\b\w/g, c => c.toUpperCase()) // title-case
+}
+
+function parseStartingEquipment(raw: unknown): InventoryItem[] {
+  if (!raw || typeof raw !== 'object') return []
+  const eq = raw as Record<string, unknown>
+  const defaultData = eq.defaultData
+  if (!Array.isArray(defaultData)) return []
+
+  const items: InventoryItem[] = []
+
+  for (const entry of defaultData as unknown[]) {
+    if (!entry || typeof entry !== 'object') continue
+    const row = entry as Record<string, unknown>
+
+    // `_` = always included; otherwise take option `a`
+    const choiceKey = '_' in row ? '_' : 'a'
+    const chosen = row[choiceKey]
+    if (!Array.isArray(chosen)) continue
+
+    for (const item of chosen as unknown[]) {
+      if (typeof item === 'string') {
+        items.push({
+          id: uuid(),
+          name: parseItemName(item),
+          quantity: 1,
+          weight: 0,
+          category: 'gear',
+          equipped: false,
+          notes: '',
+        })
+      }
+      // skip {equipmentType: ...} objects — they're generic placeholders like "any simple weapon"
+    }
+  }
+
+  return items
 }
 
 const CLASS_INDEX: Record<string, string> = {
@@ -192,6 +238,7 @@ function parseClass(raw: Record<string, unknown>): CreatorClass {
           .filter(w => typeof w === 'string')
           .map(w => stripTags(w as string))
       : [],
+    startingEquipment: parseStartingEquipment(raw.startingEquipment),
   }
 }
 
