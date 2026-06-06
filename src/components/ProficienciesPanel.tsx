@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import type { Character, ProficiencyEntry, LanguageEntry, ProficiencyCategory } from '../types'
 import { v4 as uuid } from '../uuid'
 
@@ -25,6 +25,7 @@ export default function ProficienciesPanel({ char, onChange }: Props) {
   const [newLangNotes, setNewLangNotes] = useState('')
   const [editingProfId, setEditingProfId] = useState<string | null>(null)
   const [editingLangId, setEditingLangId] = useState<string | null>(null)
+  const editingChipRef = useRef<HTMLDivElement>(null)
 
   function addProficiency() {
     const name = newProfName.trim()
@@ -90,26 +91,25 @@ export default function ProficienciesPanel({ char, onChange }: Props) {
               <div className="flex flex-wrap gap-1">
                 {entries.map(p => (
                   editingProfId === p.id ? (
-                    <div key={p.id} className="flex items-center gap-1 bg-amber-900/30 border border-amber-700/30 rounded-full px-2 py-0.5">
+                    <div key={p.id} ref={editingChipRef} className="flex items-center gap-1 bg-amber-900/30 border border-amber-700/30 rounded-full px-2 py-0.5">
                       <input
                         autoFocus
                         value={p.name}
                         onChange={e => updateProficiency(p.id, { name: e.target.value })}
-                        onBlur={() => setEditingProfId(null)}
+                        onBlur={e => { if (!editingChipRef.current?.contains(e.relatedTarget as Node)) setEditingProfId(null) }}
                         onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setEditingProfId(null) }}
                         className="bg-transparent text-amber-200 text-xs outline-none w-28"
                       />
                       <select
                         value={p.category}
                         onChange={e => updateProficiency(p.id, { category: e.target.value as ProficiencyCategory })}
-                        onMouseDown={e => e.preventDefault()}
+                        onBlur={e => { if (!editingChipRef.current?.contains(e.relatedTarget as Node)) setEditingProfId(null) }}
                         className="rounded text-[10px] px-1 cursor-pointer focus:outline-none border-0"
                         style={{ background: 'var(--color-amber-950)', color: 'var(--color-amber-300)' }}
                       >
                         {CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
                       </select>
                       <button
-                        onMouseDown={e => e.preventDefault()}
                         onClick={() => removeProficiency(p.id)}
                         className="text-red-500/60 hover:text-red-400 text-[10px] ml-0.5"
                       >✕</button>
@@ -166,23 +166,23 @@ export default function ProficienciesPanel({ char, onChange }: Props) {
         <div className="flex flex-wrap gap-1 mb-2">
           {char.languages.map(lang => (
             editingLangId === lang.id ? (
-              <div key={lang.id} className="flex items-center gap-1 bg-amber-900/30 border border-amber-700/30 rounded-full px-2 py-0.5">
+              <div key={lang.id} ref={editingChipRef} className="flex items-center gap-1 bg-amber-900/30 border border-amber-700/30 rounded-full px-2 py-0.5">
                 <input
                   autoFocus
                   value={lang.name}
                   onChange={e => updateLanguage(lang.id, { name: e.target.value })}
-                  onBlur={() => setEditingLangId(null)}
+                  onBlur={e => { if (!editingChipRef.current?.contains(e.relatedTarget as Node)) setEditingLangId(null) }}
                   onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setEditingLangId(null) }}
                   className="bg-transparent text-amber-200 text-xs outline-none w-24"
                 />
                 <input
                   value={lang.notes}
                   onChange={e => updateLanguage(lang.id, { notes: e.target.value })}
+                  onBlur={e => { if (!editingChipRef.current?.contains(e.relatedTarget as Node)) setEditingLangId(null) }}
                   placeholder="notes…"
                   className="bg-transparent text-amber-500 text-[10px] outline-none w-20 italic"
                 />
                 <button
-                  onMouseDown={e => e.preventDefault()}
                   onClick={() => removeLanguage(lang.id)}
                   className="text-red-500/60 hover:text-red-400 text-[10px] ml-0.5"
                 >✕</button>
