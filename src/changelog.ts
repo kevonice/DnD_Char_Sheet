@@ -1,6 +1,8 @@
 import type { Character, ChangelogEntry, ChangeCategory, NoteNode } from './types'
 import { v4 as uuid } from './uuid'
 
+const DEBOUNCE_MS = 5 * 60 * 1000 // 5 minutes
+
 function entry(category: ChangeCategory, summary: string, detail?: string): ChangelogEntry {
   return { id: uuid(), timestamp: Date.now(), category, summary, detail }
 }
@@ -9,8 +11,18 @@ function gpValue(c: Character['currency']): number {
   return c.cp / 100 + c.sp / 10 + c.ep / 2 + c.gp + c.pp * 10
 }
 
-export function detectChanges(prev: Character, next: Character): ChangelogEntry[] {
+// Returns true if a recent entry with the same summary exists within the debounce window
+function recentlyLogged(existing: ChangelogEntry[], summary: string): boolean {
+  const cutoff = Date.now() - DEBOUNCE_MS
+  return existing.some(e => e.summary === summary && e.timestamp >= cutoff)
+}
+
+export function detectChanges(prev: Character, next: Character, existing: ChangelogEntry[] = []): ChangelogEntry[] {
   const entries: ChangelogEntry[] = []
+
+  function maybeAdd(e: ChangelogEntry) {
+    if (!recentlyLogged([...existing, ...entries], e.summary)) entries.push(e)
+  }
 
   // ── HP & combat ──────────────────────────────────────────────────────────────
   if (prev.currentHp !== next.currentHp) {
@@ -24,7 +36,7 @@ export function detectChanges(prev: Character, next: Character): ChangelogEntry[
   if (prev.maxHp !== next.maxHp) {
     entries.push(entry('combat', `Max HP changed to ${next.maxHp}`, `Was ${prev.maxHp}`))
   }
-  if (prev.tempHp !== next.tempHp && next.tempHp > 0 && next.tempHp !== prev.tempHp) {
+  if (prev.tempHp !== next.tempHp && next.tempHp !== prev.tempHp) {
     const delta = next.tempHp - prev.tempHp
     entries.push(entry('combat', delta > 0 ? `Gained ${next.tempHp} temporary HP` : `Lost temporary HP`, `Temp HP: ${prev.tempHp} → ${next.tempHp}`))
   }
@@ -33,10 +45,12 @@ export function detectChanges(prev: Character, next: Character): ChangelogEntry[
   }
 
   // ── Conditions ───────────────────────────────────────────────────────────────
-  const addedConditions = next.conditions.filter(c => !prev.conditions.includes(c))
-  const removedConditions = prev.conditions.filter(c => !next.conditions.includes(c))
-  addedConditions.forEach(c => entries.push(entry('combat', `Afflicted: ${c}`)))
-  removedConditions.forEach(c => entries.push(entry('combat', `Recovered from: ${c}`)))
+  next.conditions.filter(c => !prev.conditions.includes(c)).forEach(c =>
+    entries.push(entry('combat', `Afflicted: ${c}`))
+  )
+  prev.conditions.filter(c => !next.conditions.includes(c)).forEach(c =>
+    entries.push(entry('combat', `Recovered from: ${c}`))
+  )
   if (prev.exhaustion !== next.exhaustion) {
     entries.push(entry('combat',
       next.exhaustion > prev.exhaustion ? `Exhaustion increased to ${next.exhaustion}` : `Exhaustion reduced to ${next.exhaustion}`
@@ -44,36 +58,37 @@ export function detectChanges(prev: Character, next: Character): ChangelogEntry[
   }
 
   // ── Inventory ─────────────────────────────────────────────────────────────────
-  const prevIds = new Set(prev.inventory.map(i => i.id))
-  const nextIds = new Set(next.inventory.map(i => i.id))
-  next.inventory.filter(i => !prevIds.has(i.id)).forEach(i =>
+  const prevItemIds = new Set(prev.inventory.map(i => i.id))
+  const nextItemIds = new Set(next.inventory.map(i => i.id))
+  next.inventory.filter(i => !prevItemIds.has(i.id)).forEach(i =>
     entries.push(entry('inventory', `Acquired: ${i.name}${i.quantity > 1 ? ` ×${i.quantity}` : ''}`, i.category !== 'misc' ? i.category : undefined))
   )
-  prev.inventory.filter(i => !nextIds.has(i.id)).forEach(i =>
+  prev.inventory.filter(i => !nextItemIds.has(i.id)).forEach(i =>
     entries.push(entry('inventory', `Lost: ${i.name}`))
   )
-  // Quantity changes on existing items
   next.inventory.forEach(item => {
     const old = prev.inventory.find(i => i.id === item.id)
-    if (old && old.quantity !== item.quantity) {
+    if (!old) return
+    if (old.quantity !== item.quantity) {
       const delta = item.quantity - old.quantity
       entries.push(entry('inventory',
         delta > 0 ? `${item.name} ×${delta} added` : `${item.name} ×${Math.abs(delta)} removed`,
         `Quantity: ${old.quantity} → ${item.quantity}`
       ))
     }
+    // Description edited — debounced
+    if (old.description !== item.description || old.notes !== item.notes) {
+      maybeAdd(entry('inventory', `Item updated: ${item.name}`, 'Description or notes edited'))
+    }
   })
 
   // ── Currency ──────────────────────────────────────────────────────────────────
-  const prevGp = gpValue(prev.currency)
-  const nextGp = gpValue(next.currency)
-  const gpDelta = Math.round((nextGp - prevGp) * 100) / 100
+  const gpDelta = Math.round((gpValue(next.currency) - gpValue(prev.currency)) * 100) / 100
   if (gpDelta !== 0) {
-    const parts: string[] = []
     const keys: Array<keyof Character['currency']> = ['pp', 'gp', 'ep', 'sp', 'cp']
-    keys.forEach(k => {
+    const parts = keys.flatMap(k => {
       const d = next.currency[k] - prev.currency[k]
-      if (d !== 0) parts.push(`${d > 0 ? '+' : ''}${d} ${k}`)
+      return d !== 0 ? [`${d > 0 ? '+' : ''}${d} ${k}`] : []
     })
     entries.push(entry('inventory',
       gpDelta > 0 ? `Received ${Math.abs(gpDelta)} gp worth of coin` : `Spent ${Math.abs(gpDelta)} gp worth of coin`,
@@ -91,23 +106,62 @@ export function detectChanges(prev: Character, next: Character): ChangelogEntry[
     entries.push(entry('magic', `Forgot: ${s.name}`))
   )
 
-  // ── Notes (add/delete/rename only — content changes too granular) ─────────────
+  // ── Notes ────────────────────────────────────────────────────────────────────
   function flattenNotes(nodes: NoteNode[]): NoteNode[] {
     return nodes.flatMap(n => [n, ...flattenNotes(n.children)])
   }
   const prevNotes = flattenNotes(prev.noteTree ?? [])
   const nextNotes = flattenNotes(next.noteTree ?? [])
-  const prevNoteIds = new Map(prevNotes.map(n => [n.id, n]))
-  const nextNoteIds = new Map(nextNotes.map(n => [n.id, n]))
-  nextNotes.filter(n => !prevNoteIds.has(n.id)).forEach(n =>
+  const prevNoteMap = new Map(prevNotes.map(n => [n.id, n]))
+  const nextNoteMap = new Map(nextNotes.map(n => [n.id, n]))
+
+  nextNotes.filter(n => !prevNoteMap.has(n.id)).forEach(n =>
     entries.push(entry('note', `Note added: "${n.title}"`))
   )
-  prevNotes.filter(n => !nextNoteIds.has(n.id)).forEach(n =>
+  prevNotes.filter(n => !nextNoteMap.has(n.id)).forEach(n =>
     entries.push(entry('note', `Note deleted: "${n.title}"`))
   )
   nextNotes.forEach(n => {
-    const old = prevNoteIds.get(n.id)
-    if (old && old.title !== n.title) entries.push(entry('note', `Note renamed: "${old.title}" → "${n.title}"`))
+    const old = prevNoteMap.get(n.id)
+    if (!old) return
+    if (old.title !== n.title) {
+      entries.push(entry('note', `Note renamed: "${old.title}" → "${n.title}"`))
+    } else if (old.content !== n.content) {
+      // Content edited — debounced
+      maybeAdd(entry('note', `Note edited: "${n.title}"`))
+    }
+  })
+
+  // ── Active features ───────────────────────────────────────────────────────────
+  const prevFeatMap = new Map(prev.activeFeatures.map(f => [f.id, f]))
+  const nextFeatMap = new Map(next.activeFeatures.map(f => [f.id, f]))
+  next.activeFeatures.filter(f => !prevFeatMap.has(f.id)).forEach(f =>
+    entries.push(entry('note', `Feature added: "${f.name}"`))
+  )
+  prev.activeFeatures.filter(f => !nextFeatMap.has(f.id)).forEach(f =>
+    entries.push(entry('note', `Feature removed: "${f.name}"`))
+  )
+  next.activeFeatures.forEach(f => {
+    const old = prevFeatMap.get(f.id)
+    if (old && old.description !== f.description) {
+      maybeAdd(entry('note', `Feature updated: "${f.name}"`))
+    }
+  })
+
+  // ── Passive traits ────────────────────────────────────────────────────────────
+  const prevTraitMap = new Map(prev.passiveTraits.map(t => [t.id, t]))
+  const nextTraitMap = new Map(next.passiveTraits.map(t => [t.id, t]))
+  next.passiveTraits.filter(t => !prevTraitMap.has(t.id)).forEach(t =>
+    entries.push(entry('note', `Trait added: "${t.name}"`))
+  )
+  prev.passiveTraits.filter(t => !nextTraitMap.has(t.id)).forEach(t =>
+    entries.push(entry('note', `Trait removed: "${t.name}"`))
+  )
+  next.passiveTraits.forEach(t => {
+    const old = prevTraitMap.get(t.id)
+    if (old && old.description !== t.description) {
+      maybeAdd(entry('note', `Trait updated: "${t.name}"`))
+    }
   })
 
   // ── Level & XP ────────────────────────────────────────────────────────────────

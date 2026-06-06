@@ -111,7 +111,7 @@ export default function App() {
       // Don't log changes when the changelog itself is the only thing updated
       const keys = Object.keys(updates) as (keyof Character)[]
       if (keys.length === 1 && keys[0] === 'changelog') return next
-      const newEntries = detectChanges(prev, next)
+      const newEntries = detectChanges(prev, next, prev.changelog ?? [])
       if (newEntries.length > 0) {
         next.changelog = [...(prev.changelog ?? []), ...newEntries]
       }
