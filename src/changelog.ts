@@ -1,4 +1,4 @@
-import type { Character, ChangelogEntry, ChangeCategory } from './types'
+import type { Character, ChangelogEntry, ChangeCategory, NoteNode } from './types'
 import { v4 as uuid } from './uuid'
 
 function entry(category: ChangeCategory, summary: string, detail?: string): ChangelogEntry {
@@ -90,6 +90,25 @@ export function detectChanges(prev: Character, next: Character): ChangelogEntry[
   prev.spells.filter(s => !nextSpellIds.has(s.id)).forEach(s =>
     entries.push(entry('magic', `Forgot: ${s.name}`))
   )
+
+  // ── Notes (add/delete/rename only — content changes too granular) ─────────────
+  function flattenNotes(nodes: NoteNode[]): NoteNode[] {
+    return nodes.flatMap(n => [n, ...flattenNotes(n.children)])
+  }
+  const prevNotes = flattenNotes(prev.noteTree ?? [])
+  const nextNotes = flattenNotes(next.noteTree ?? [])
+  const prevNoteIds = new Map(prevNotes.map(n => [n.id, n]))
+  const nextNoteIds = new Map(nextNotes.map(n => [n.id, n]))
+  nextNotes.filter(n => !prevNoteIds.has(n.id)).forEach(n =>
+    entries.push(entry('note', `Note added: "${n.title}"`))
+  )
+  prevNotes.filter(n => !nextNoteIds.has(n.id)).forEach(n =>
+    entries.push(entry('note', `Note deleted: "${n.title}"`))
+  )
+  nextNotes.forEach(n => {
+    const old = prevNoteIds.get(n.id)
+    if (old && old.title !== n.title) entries.push(entry('note', `Note renamed: "${old.title}" → "${n.title}"`))
+  })
 
   // ── Level & XP ────────────────────────────────────────────────────────────────
   if (prev.level !== next.level) {

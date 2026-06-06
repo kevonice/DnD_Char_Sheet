@@ -198,7 +198,7 @@ export default function App() {
   }
 
   if (showCreator) {
-    return <CharacterCreator onComplete={handleCreatorComplete} onManual={handleManual} />
+    return <CharacterCreator onComplete={handleCreatorComplete} onManual={handleManual} onImport={handleCreatorComplete} />
   }
 
   return (
@@ -413,7 +413,7 @@ export default function App() {
 
       {/* ── Tab bar ── */}
       <nav className="border-b border-amber-800/25 bg-amber-950/30">
-        <div className="max-w-[1400px] mx-auto flex">
+        <div className="max-w-[1400px] mx-auto flex overflow-x-auto scrollbar-none">
           {(['main', 'spells', 'class', 'backstory', 'notes', 'chronicle', 'maps'] as Tab[]).map(tab => {
             const isActive = activeTab === tab
             const labels: Record<Tab, string> = { main: 'Character', spells: 'Spells', class: 'Class', backstory: 'Background', notes: 'Notes', chronicle: 'Chronicle', maps: 'Maps' }
@@ -421,7 +421,7 @@ export default function App() {
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-7 py-2.5 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 ${
+                className={`flex-shrink-0 px-5 py-2.5 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 ${
                   isActive ? '' : 'border-transparent text-amber-700/50 hover:text-amber-500/70'
                 }`}
                 style={isActive ? { borderColor: theme.accent, color: theme.accent } : undefined}

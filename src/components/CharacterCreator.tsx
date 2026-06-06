@@ -12,6 +12,7 @@ import { lookupItems } from '../data/fiveEtools'
 interface Props {
   onComplete: (char: Partial<Character>) => void
   onManual:   () => void
+  onImport:   (char: Partial<Character>) => void
 }
 
 type Step = 'landing' | 'name' | 'race' | 'class' | 'review'
@@ -220,7 +221,7 @@ function ClassPicker({ classes, loading, selected, onSelect }: {
 // Main wizard
 // ---------------------------------------------------------------------------
 
-export default function CharacterCreator({ onComplete, onManual }: Props) {
+export default function CharacterCreator({ onComplete, onManual, onImport }: Props) {
   const [step, setStep]         = useState<Step>('landing')
   const [charName, setCharName] = useState('')
 
@@ -318,6 +319,22 @@ export default function CharacterCreator({ onComplete, onManual }: Props) {
 
   // ── Landing ──────────────────────────────────────────────────────────────
   if (step === 'landing') {
+    function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+      const file = e.target.files?.[0]
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = ev => {
+        try {
+          const parsed = JSON.parse(ev.target?.result as string)
+          onImport(parsed)
+        } catch {
+          alert('Could not read that file — make sure it\'s a valid character JSON.')
+        }
+      }
+      reader.readAsText(file)
+      e.target.value = ''
+    }
+
     return (
       <WizardShell step="landing">
         <div className="text-center mb-8">
@@ -325,27 +342,39 @@ export default function CharacterCreator({ onComplete, onManual }: Props) {
           <p className="text-amber-600/60 text-sm">How would you like to begin?</p>
         </div>
         <div className="grid grid-cols-1 gap-4">
+          {/* Returning player — most prominent */}
+          <label className="group bg-amber-900/40 border-2 border-amber-600/50 hover:border-amber-500/80 rounded-2xl p-6 text-left transition-all hover:bg-amber-800/30 cursor-pointer">
+            <input type="file" accept=".json" className="hidden" onChange={handleImportFile} />
+            <div className="text-lg font-bold text-amber-200 mb-1 group-hover:text-amber-100">
+              ↑ Load existing character
+            </div>
+            <p className="text-amber-500/70 text-sm">
+              Already have a character? Import your saved JSON file to pick up where you left off.
+            </p>
+          </label>
+
           <button
             onClick={() => setStep('name')}
             className="group bg-amber-950/50 border border-amber-700/40 hover:border-amber-500/70 rounded-2xl p-6 text-left transition-all hover:bg-amber-900/30"
           >
-            <div className="text-lg font-bold text-amber-200 mb-1 group-hover:text-amber-100">
-              ✦ Guided Creation
+            <div className="text-lg font-bold text-amber-300 mb-1 group-hover:text-amber-100">
+              ✦ Create new character
             </div>
             <p className="text-amber-600/60 text-sm">
               Choose your race and class from 5e sourcebooks. Traits, hit dice, and proficiencies
               are filled in automatically. You can still customise everything afterwards.
             </p>
           </button>
+
           <button
             onClick={onManual}
             className="group bg-amber-950/30 border border-amber-800/25 hover:border-amber-700/40 rounded-2xl p-6 text-left transition-all"
           >
             <div className="text-lg font-bold text-amber-400/70 mb-1 group-hover:text-amber-300">
-              ✎ Manual Entry
+              ✎ Blank sheet
             </div>
             <p className="text-amber-700/50 text-sm">
-              Start with a blank sheet and fill in everything yourself.
+              Start empty and fill everything in yourself.
             </p>
           </button>
         </div>

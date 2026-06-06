@@ -65,7 +65,7 @@ export default function ChronicleTab({ char, onChange }: Props) {
   return (
     <div className="space-y-3">
 
-      {/* ── Add manual note ── */}
+      {/* ── Add manual note + clear all ── */}
       <div className="flex gap-2">
         <input
           value={noteText}
@@ -81,6 +81,15 @@ export default function ChronicleTab({ char, onChange }: Props) {
         >
           + Note
         </button>
+        {allEntries.length > 0 && (
+          <button
+            onClick={() => { if (confirm('Clear the entire chronicle? This cannot be undone.')) onChange({ changelog: [] }) }}
+            className="px-3 py-1.5 border border-red-900/40 text-red-700/50 hover:text-red-500 hover:border-red-700/50 rounded-lg text-xs transition-colors"
+            title="Clear all chronicle entries"
+          >
+            Clear all
+          </button>
+        )}
       </div>
 
       {/* ── Category filter chips ── */}
