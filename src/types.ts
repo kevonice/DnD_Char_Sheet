@@ -79,6 +79,11 @@ export interface InventoryItem {
   // armor-only
   armorClass?: number
   source?: string
+  // container
+  isContainer?: boolean
+  containerCapacity?: number  // max weight in lbs; 0 = unlimited
+  ignoresWeight?: boolean     // true = contents excluded from carry weight (Bag of Holding)
+  containerId?: string        // ID of the container this item is stored in
 }
 
 // ── Maps ─────────────────────────────────────────────────────────────────────

@@ -136,8 +136,23 @@ export default function InventoryPanel({ inventory, str, onChange }: Props) {
   function update(id: string, updates: Partial<InventoryItem>) {
     onChange(inventory.map(it => it.id === id ? { ...it, ...updates } : it))
   }
-  function remove(id: string) { onChange(inventory.filter(it => it.id !== id)) }
+  function remove(id: string) {
+    // If removing a container, unlink all its contents first
+    onChange(
+      inventory
+        .filter(it => it.id !== id)
+        .map(it => it.containerId === id ? { ...it, containerId: undefined } : it)
+    )
+  }
   function add(item: InventoryItem) { onChange([...inventory, item]) }
+
+  // Container helpers
+  function contentsOf(containerId: string) {
+    return inventory.filter(it => it.containerId === containerId)
+  }
+  function containerWeight(containerId: string) {
+    return contentsOf(containerId).reduce((s, it) => s + it.weight * it.quantity, 0)
+  }
 
   function clearDataCache() {
     Object.keys(localStorage)
@@ -147,7 +162,13 @@ export default function InventoryPanel({ inventory, str, onChange }: Props) {
   }
 
   const carryCapacity = str * 15
-  const totalWeightCarried = inventory.reduce((sum, it) => sum + it.weight * it.quantity, 0)
+  const totalWeightCarried = inventory.reduce((sum, it) => {
+    if (it.containerId) {
+      const container = inventory.find(c => c.id === it.containerId)
+      if (container?.ignoresWeight) return sum
+    }
+    return sum + it.weight * it.quantity
+  }, 0)
   const pct = Math.min(totalWeightCarried / carryCapacity, 1)
   const overencumbered = totalWeightCarried > carryCapacity
 
@@ -192,7 +213,7 @@ export default function InventoryPanel({ inventory, str, onChange }: Props) {
             </div>
 
             <div className="space-y-1">
-              {items.map(item => (
+              {items.filter(it => !it.containerId).map(item => (
                 <div key={item.id} className="bg-amber-950/30 border border-amber-800/30 rounded">
                   <div className="flex items-center gap-1.5 px-2 py-1">
                     {/* remove */}
@@ -242,6 +263,11 @@ export default function InventoryPanel({ inventory, str, onChange }: Props) {
                     )}
                     {item.source && (
                       <span className="text-amber-700/50 text-[9px] flex-shrink-0">{item.source}</span>
+                    )}
+                    {item.isContainer && (
+                      <span className="text-[9px] text-amber-600/50 flex-shrink-0 border border-amber-800/30 rounded px-1">
+                        📦 {contentsOf(item.id).length}
+                      </span>
                     )}
 
                     <button
@@ -333,6 +359,106 @@ export default function InventoryPanel({ inventory, str, onChange }: Props) {
                           />
                         </div>
                       </div>
+
+                      {/* ── Container toggle (gear/misc only, non-contained) ── */}
+                      {(cat === 'gear' || cat === 'misc') && !item.containerId && (
+                        <div className="border-t border-amber-800/20 pt-2 space-y-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={item.isContainer ?? false}
+                              onChange={e => update(item.id, { isContainer: e.target.checked })}
+                              className="accent-amber-500"
+                            />
+                            <span className="text-xs text-amber-400/80">This item is a container</span>
+                          </label>
+
+                          {item.isContainer && (
+                            <div className="space-y-2 pl-4">
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="bg-amber-950/40 rounded-lg px-2 py-1.5">
+                                  <span className="text-[8px] uppercase tracking-widest text-amber-600/50 block mb-0.5">Capacity (lb)</span>
+                                  <input
+                                    type="number" min={0}
+                                    value={item.containerCapacity ?? 0}
+                                    onChange={e => update(item.id, { containerCapacity: Number(e.target.value) })}
+                                    className="bg-transparent text-amber-200 text-xs w-full focus:outline-none"
+                                    placeholder="500"
+                                  />
+                                </div>
+                                <label className="flex items-center gap-2 cursor-pointer px-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={item.ignoresWeight ?? false}
+                                    onChange={e => update(item.id, { ignoresWeight: e.target.checked })}
+                                    className="accent-amber-500"
+                                  />
+                                  <span className="text-[10px] text-amber-500/70 leading-tight">Contents excluded from carry weight</span>
+                                </label>
+                              </div>
+
+                              {/* Container weight bar */}
+                              {(() => {
+                                const used = containerWeight(item.id)
+                                const cap = item.containerCapacity ?? 0
+                                const cpct = cap > 0 ? Math.min(used / cap, 1) : 0
+                                const over = cap > 0 && used > cap
+                                return (
+                                  <div>
+                                    <div className="flex justify-between text-[9px] text-amber-700/50 mb-1">
+                                      <span className={over ? 'text-red-400' : ''}>{used.toFixed(1)} lb used</span>
+                                      <span>{cap > 0 ? `${cap} lb cap` : 'No limit'}</span>
+                                    </div>
+                                    {cap > 0 && (
+                                      <div className="h-1 bg-amber-950/60 rounded-full overflow-hidden border border-amber-800/30">
+                                        <div className={`h-full rounded-full ${over ? 'bg-red-500/70' : 'bg-amber-600/50'}`} style={{ width: `${cpct * 100}%` }} />
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })()}
+
+                              {/* Contents list */}
+                              <div className="space-y-0.5">
+                                {contentsOf(item.id).map(c => (
+                                  <div key={c.id} className="flex items-center gap-2 px-2 py-1 bg-amber-950/20 border border-amber-800/20 rounded text-xs">
+                                    <span className="flex-1 text-amber-200/80 truncate">{c.name || '(unnamed)'}</span>
+                                    <span className="text-amber-700/50">{(c.weight * c.quantity).toFixed(1)} lb</span>
+                                    <button
+                                      onClick={() => update(c.id, { containerId: undefined })}
+                                      className="text-amber-700/40 hover:text-amber-400 text-[10px]"
+                                      title="Remove from container"
+                                    >↑ out</button>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* Add items to container */}
+                              {inventory.filter(it => !it.containerId && it.id !== item.id && !it.isContainer).length > 0 && (
+                                <div>
+                                  <span className="text-[8px] uppercase tracking-widest text-amber-700/50 block mb-1">Store item in container</span>
+                                  <select
+                                    value=""
+                                    onChange={e => { if (e.target.value) update(e.target.value, { containerId: item.id }) }}
+                                    className="w-full text-xs rounded-lg px-2 py-1 border border-amber-700/30"
+                                    style={{ background: 'var(--color-amber-950)', color: 'var(--color-amber-300)' }}
+                                  >
+                                    <option value="">— Move an item here —</option>
+                                    {inventory
+                                      .filter(it => !it.containerId && it.id !== item.id && !it.isContainer)
+                                      .map(it => (
+                                        <option key={it.id} value={it.id}>
+                                          {it.name || '(unnamed)'} ({(it.weight * it.quantity).toFixed(1)} lb)
+                                        </option>
+                                      ))
+                                    }
+                                  </select>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {/* ── Description ── */}
                       <div>
