@@ -40,7 +40,7 @@ function profBonus(level: number): number {
 function cellStr(cell: unknown): string {
   if (cell === null || cell === undefined) return '—'
   if (typeof cell === 'number') return String(cell)
-  if (typeof cell === 'string') return cell || '—'
+  if (typeof cell === 'string') return stripTags(cell) || '—'
   if (typeof cell === 'object') {
     const o = cell as Record<string, unknown>
     if (o.type === 'bonus' && typeof o.value === 'number') return `+${o.value}`
@@ -161,7 +161,7 @@ export async function fetchClassProgression(
   for (const group of tableGroups) {
     const labels = (group.colLabels as string[] | undefined) ?? []
     const rows   = (group.rows as unknown[][] | undefined) ?? []
-    allColLabels.push(...labels)
+    allColLabels.push(...labels.map(stripTags))
     for (let i = 0; i < 20; i++) {
       const rowCells = rows[i] ?? []
       allGroupRows[i].push(...rowCells)
