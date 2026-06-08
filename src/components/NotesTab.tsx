@@ -1,8 +1,9 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { NoteNode } from '../types'
 import { v4 as uuid } from '../uuid'
+import MarkdownEditor from './MarkdownEditor'
 
 interface Props {
   noteTree: NoteNode[]
@@ -187,73 +188,6 @@ function applyAction(
   })
 }
 
-// ── Smart keyboard handler ────────────────────────────────────────────────────
-
-function handleSmartKey(
-  e: React.KeyboardEvent<HTMLTextAreaElement>,
-  value: string,
-  onChange: (v: string) => void,
-) {
-  const ta = e.currentTarget
-  const start = ta.selectionStart
-  const end   = ta.selectionEnd
-
-  // Tab — indent with 2 spaces
-  if (e.key === 'Tab') {
-    e.preventDefault()
-    const next = value.slice(0, start) + '  ' + value.slice(end)
-    onChange(next)
-    requestAnimationFrame(() => ta.setSelectionRange(start + 2, start + 2))
-    return
-  }
-
-  if (e.key === 'Enter') {
-    const lineStart = value.lastIndexOf('\n', start - 1) + 1
-    const line = value.slice(lineStart, start)
-
-    // Continue bullet / numbered list / blockquote / task item
-    const listMatch = line.match(/^(\s*)([-*+]|\d+\.)\s(\[[ x]\]\s)?/)
-    const quoteMatch = line.match(/^(\s*>+\s?)/)
-
-    if (listMatch) {
-      e.preventDefault()
-      const [, indent, bullet, task] = listMatch
-      // Empty list item — break out of list
-      if (line.trim() === bullet || line.trim() === `${bullet} [ ]`) {
-        const next = value.slice(0, lineStart) + value.slice(start)
-        onChange(next)
-        requestAnimationFrame(() => ta.setSelectionRange(lineStart, lineStart))
-        return
-      }
-      const nextBullet = /^\d+$/.test(bullet.replace('.', ''))
-        ? `${parseInt(bullet) + 1}. `
-        : `${bullet} `
-      const nextTask = task ? '[ ] ' : ''
-      const insert = `\n${indent}${nextBullet}${nextTask}`
-      const next = value.slice(0, start) + insert + value.slice(end)
-      onChange(next)
-      requestAnimationFrame(() => ta.setSelectionRange(start + insert.length, start + insert.length))
-      return
-    }
-
-    if (quoteMatch) {
-      e.preventDefault()
-      const [prefix] = quoteMatch
-      // Empty quote line — break out
-      if (line.trim() === prefix.trim()) {
-        const next = value.slice(0, lineStart) + value.slice(start)
-        onChange(next)
-        requestAnimationFrame(() => ta.setSelectionRange(lineStart, lineStart))
-        return
-      }
-      const insert = `\n${prefix}`
-      const next = value.slice(0, start) + insert + value.slice(end)
-      onChange(next)
-      requestAnimationFrame(() => ta.setSelectionRange(start + insert.length, start + insert.length))
-      return
-    }
-  }
-}
 
 // ── Markdown preview styles ───────────────────────────────────────────────────
 
@@ -291,9 +225,7 @@ function NoteEditor({
   onChange: (patch: Partial<NoteNode>) => void
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const [focusEditor, setFocusEditor] = useState(true)
-
-  const handleChange = useCallback((content: string) => onChange({ content }), [onChange])
+  const [preview, setPreview] = useState(false)
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -302,7 +234,7 @@ function NoteEditor({
         value={note.title}
         onChange={e => onChange({ title: e.target.value })}
         placeholder="Note title…"
-        className="text-xl font-bold bg-transparent text-amber-100 focus:outline-none border-b border-amber-800/30 pb-2 mb-3 placeholder:text-amber-800/40"
+        className="text-xl font-bold bg-transparent text-amber-100 focus:outline-none border-b border-amber-800/30 pb-2 mb-3 placeholder:text-amber-800/40 shrink-0"
       />
 
       {/* Toolbar */}
@@ -314,55 +246,41 @@ function NoteEditor({
             onMouseDown={e => {
               e.preventDefault()
               if (textareaRef.current) {
-                applyAction(textareaRef.current, action, note.content, handleChange)
+                applyAction(textareaRef.current, action, note.content, v => onChange({ content: v }))
               }
             }}
-            className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-amber-900/40 border border-amber-800/30 text-amber-400 hover:bg-amber-800/50 hover:text-amber-200 transition-colors"
+            className={`px-1.5 py-0.5 text-[10px] font-mono rounded bg-amber-900/40 border border-amber-800/30 text-amber-400 hover:bg-amber-800/50 hover:text-amber-200 transition-colors ${preview ? 'opacity-30 pointer-events-none' : ''}`}
           >
             {action.label}
           </button>
         ))}
         <div className="flex-1" />
-        {/* Focus indicator */}
-        <div className="flex rounded border border-amber-800/30 overflow-hidden text-[9px]">
-          <button
-            onClick={() => setFocusEditor(true)}
-            className={`px-2 py-0.5 transition-colors ${focusEditor ? 'bg-amber-700/40 text-amber-200' : 'text-amber-700/50 hover:text-amber-400'}`}
-          >Edit</button>
-          <button
-            onClick={() => setFocusEditor(false)}
-            className={`px-2 py-0.5 transition-colors ${!focusEditor ? 'bg-amber-700/40 text-amber-200' : 'text-amber-700/50 hover:text-amber-400'}`}
-          >Focus preview</button>
-        </div>
+        <button
+          onClick={() => setPreview(p => !p)}
+          className={`px-2 py-0.5 text-[9px] rounded border transition-colors ${
+            preview ? 'bg-amber-700/40 border-amber-600/40 text-amber-200' : 'border-amber-800/30 text-amber-600/60 hover:text-amber-400'
+          }`}
+        >
+          {preview ? '✎ Edit' : '👁 Preview'}
+        </button>
       </div>
 
-      {/* Split pane — editor left, live preview right */}
-      <div className="flex flex-1 min-h-0 gap-3">
-        {/* Editor */}
-        <div className={`flex flex-col min-h-0 transition-all ${focusEditor ? 'flex-1' : 'w-0 overflow-hidden opacity-0'}`}>
-          <textarea
-            ref={textareaRef}
-            value={note.content}
-            onChange={e => handleChange(e.target.value)}
-            onKeyDown={e => handleSmartKey(e, note.content, handleChange)}
-            placeholder={`# Note title\n\nWrite in markdown…\n\n**bold**, *italic*, ~~strike~~\n- bullet list\n1. ordered list\n- [ ] task item\n> blockquote\n\`inline code\``}
-            className="flex-1 min-h-0 resize-none bg-amber-950/40 border border-amber-800/25 rounded-xl p-4 text-sm text-amber-200/80 placeholder:text-amber-700/30 focus:outline-none focus:border-amber-700/40 font-mono leading-relaxed"
-          />
+      {/* WYSIWYG editor or read-only preview */}
+      {preview ? (
+        <div className={PREVIEW_CLS + ' flex-1 bg-amber-950/40 rounded-xl border border-amber-800/25'}>
+          {note.content
+            ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{note.content}</ReactMarkdown>
+            : <span className="text-amber-800/30 italic text-xs">Nothing written yet.</span>
+          }
         </div>
-
-        {/* Divider */}
-        <div className={`w-px bg-amber-800/20 shrink-0 self-stretch transition-all ${focusEditor ? '' : 'hidden'}`} />
-
-        {/* Live preview */}
-        <div className={`min-h-0 overflow-y-auto transition-all ${focusEditor ? 'flex-1' : 'flex-1'}`}>
-          <div className={PREVIEW_CLS + ' h-full'}>
-            {note.content
-              ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{note.content}</ReactMarkdown>
-              : <span className="text-amber-800/30 italic text-xs select-none">Preview appears here as you type…</span>
-            }
-          </div>
-        </div>
-      </div>
+      ) : (
+        <MarkdownEditor
+          key={note.id}
+          value={note.content}
+          onChange={content => onChange({ content })}
+          placeholder={'# Heading\n\nWrite in markdown — formatting renders as you type.\nClick a line to edit it.'}
+        />
+      )}
     </div>
   )
 }
