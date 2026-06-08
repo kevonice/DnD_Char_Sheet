@@ -1,5 +1,6 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import type { NoteNode } from '../types'
 import { v4 as uuid } from '../uuid'
 
@@ -43,13 +44,7 @@ function findNode(tree: NoteNode[], id: string): NoteNode | null {
 // ── Sidebar tree ──────────────────────────────────────────────────────────────
 
 function NoteTreeItem({
-  node,
-  depth,
-  selectedId,
-  onSelect,
-  onAddChild,
-  onDelete,
-  onRename,
+  node, depth, selectedId, onSelect, onAddChild, onDelete, onRename,
 }: {
   node: NoteNode
   depth: number
@@ -79,7 +74,6 @@ function NoteTreeItem({
         style={{ paddingLeft: `${8 + depth * 14}px` }}
         onClick={() => !renaming && onSelect(node.id)}
       >
-        {/* collapse toggle */}
         <button
           onClick={e => { e.stopPropagation(); setCollapsed(c => !c) }}
           className={`text-[10px] w-3 shrink-0 text-amber-700/50 hover:text-amber-400 ${!hasChildren ? 'invisible' : ''}`}
@@ -87,7 +81,6 @@ function NoteTreeItem({
           {collapsed ? '▶' : '▼'}
         </button>
 
-        {/* title / rename input */}
         {renaming ? (
           <input
             autoFocus
@@ -107,27 +100,13 @@ function NoteTreeItem({
           </span>
         )}
 
-        {/* action buttons — visible on hover */}
         <span className="hidden group-hover:flex items-center gap-0.5 shrink-0">
-          <button
-            title="Add child note"
-            onClick={e => { e.stopPropagation(); onAddChild(node.id) }}
-            className="px-1 hover:text-amber-200"
-          >＋</button>
-          <button
-            title="Rename"
-            onClick={e => { e.stopPropagation(); setRenaming(true); setDraft(node.title) }}
-            className="px-1 hover:text-amber-200"
-          >✎</button>
-          <button
-            title="Delete"
-            onClick={e => { e.stopPropagation(); onDelete(node.id) }}
-            className="px-1 hover:text-red-400"
-          >✕</button>
+          <button title="Add child note" onClick={e => { e.stopPropagation(); onAddChild(node.id) }} className="px-1 hover:text-amber-200">＋</button>
+          <button title="Rename" onClick={e => { e.stopPropagation(); setRenaming(true); setDraft(node.title) }} className="px-1 hover:text-amber-200">✎</button>
+          <button title="Delete" onClick={e => { e.stopPropagation(); onDelete(node.id) }} className="px-1 hover:text-red-400">✕</button>
         </span>
       </div>
 
-      {/* children */}
       {!collapsed && hasChildren && (
         <div>
           {node.children.map(child => (
@@ -153,9 +132,9 @@ function NoteTreeItem({
 type ToolbarAction = {
   label: string
   title: string
-  wrap?: [string, string]   // wrap selection: [before, after]
-  prefix?: string           // prefix each line
-  block?: string            // insert a block at cursor
+  wrap?: [string, string]
+  prefix?: string
+  block?: string
 }
 
 const TOOLBAR: ToolbarAction[] = [
@@ -202,12 +181,105 @@ function applyAction(
   }
 
   onChange(next)
-  // restore selection after state update
   requestAnimationFrame(() => {
     textarea.focus()
     textarea.setSelectionRange(newStart, newEnd)
   })
 }
+
+// ── Smart keyboard handler ────────────────────────────────────────────────────
+
+function handleSmartKey(
+  e: React.KeyboardEvent<HTMLTextAreaElement>,
+  value: string,
+  onChange: (v: string) => void,
+) {
+  const ta = e.currentTarget
+  const start = ta.selectionStart
+  const end   = ta.selectionEnd
+
+  // Tab — indent with 2 spaces
+  if (e.key === 'Tab') {
+    e.preventDefault()
+    const next = value.slice(0, start) + '  ' + value.slice(end)
+    onChange(next)
+    requestAnimationFrame(() => ta.setSelectionRange(start + 2, start + 2))
+    return
+  }
+
+  if (e.key === 'Enter') {
+    const lineStart = value.lastIndexOf('\n', start - 1) + 1
+    const line = value.slice(lineStart, start)
+
+    // Continue bullet / numbered list / blockquote / task item
+    const listMatch = line.match(/^(\s*)([-*+]|\d+\.)\s(\[[ x]\]\s)?/)
+    const quoteMatch = line.match(/^(\s*>+\s?)/)
+
+    if (listMatch) {
+      e.preventDefault()
+      const [, indent, bullet, task] = listMatch
+      // Empty list item — break out of list
+      if (line.trim() === bullet || line.trim() === `${bullet} [ ]`) {
+        const next = value.slice(0, lineStart) + value.slice(start)
+        onChange(next)
+        requestAnimationFrame(() => ta.setSelectionRange(lineStart, lineStart))
+        return
+      }
+      const nextBullet = /^\d+$/.test(bullet.replace('.', ''))
+        ? `${parseInt(bullet) + 1}. `
+        : `${bullet} `
+      const nextTask = task ? '[ ] ' : ''
+      const insert = `\n${indent}${nextBullet}${nextTask}`
+      const next = value.slice(0, start) + insert + value.slice(end)
+      onChange(next)
+      requestAnimationFrame(() => ta.setSelectionRange(start + insert.length, start + insert.length))
+      return
+    }
+
+    if (quoteMatch) {
+      e.preventDefault()
+      const [prefix] = quoteMatch
+      // Empty quote line — break out
+      if (line.trim() === prefix.trim()) {
+        const next = value.slice(0, lineStart) + value.slice(start)
+        onChange(next)
+        requestAnimationFrame(() => ta.setSelectionRange(lineStart, lineStart))
+        return
+      }
+      const insert = `\n${prefix}`
+      const next = value.slice(0, start) + insert + value.slice(end)
+      onChange(next)
+      requestAnimationFrame(() => ta.setSelectionRange(start + insert.length, start + insert.length))
+      return
+    }
+  }
+}
+
+// ── Markdown preview styles ───────────────────────────────────────────────────
+
+const PREVIEW_CLS = [
+  'flex-1 overflow-y-auto p-4 text-sm text-amber-200/80 leading-relaxed min-w-0',
+  '[&_h1]:text-2xl [&_h1]:font-bold [&_h1]:text-amber-100 [&_h1]:mb-3 [&_h1]:mt-4 [&_h1]:border-b [&_h1]:border-amber-800/40 [&_h1]:pb-1',
+  '[&_h2]:text-lg [&_h2]:font-bold [&_h2]:text-amber-200 [&_h2]:mb-2 [&_h2]:mt-3',
+  '[&_h3]:text-base [&_h3]:font-semibold [&_h3]:text-amber-300 [&_h3]:mb-1 [&_h3]:mt-2',
+  '[&_p]:mb-2',
+  '[&_strong]:text-amber-100 [&_strong]:font-bold',
+  '[&_em]:text-amber-300/90 [&_em]:italic',
+  '[&_del]:text-amber-700/70 [&_del]:line-through',
+  '[&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-2 [&_ul]:space-y-0.5',
+  '[&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-2 [&_ol]:space-y-0.5',
+  '[&_li]:text-amber-200/80',
+  '[&_blockquote]:border-l-2 [&_blockquote]:border-amber-600/50 [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-amber-400/70 [&_blockquote]:my-2',
+  '[&_code]:bg-amber-900/60 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-amber-300 [&_code]:font-mono [&_code]:text-xs',
+  '[&_pre]:bg-amber-950/80 [&_pre]:border [&_pre]:border-amber-800/30 [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:overflow-x-auto [&_pre]:my-2',
+  '[&_pre_code]:bg-transparent [&_pre_code]:p-0',
+  '[&_hr]:border-amber-800/40 [&_hr]:my-3',
+  '[&_a]:text-amber-400 [&_a]:underline [&_a]:hover:text-amber-200',
+  '[&_table]:w-full [&_table]:text-xs [&_table]:border-collapse [&_table]:my-2',
+  '[&_th]:bg-amber-900/50 [&_th]:border [&_th]:border-amber-800/40 [&_th]:px-2 [&_th]:py-1 [&_th]:text-amber-200 [&_th]:text-left',
+  '[&_td]:border [&_td]:border-amber-800/30 [&_td]:px-2 [&_td]:py-1',
+  '[&_input[type=checkbox]]:mr-1 [&_input[type=checkbox]]:accent-amber-500',
+].join(' ')
 
 // ── Editor pane ───────────────────────────────────────────────────────────────
 
@@ -218,8 +290,10 @@ function NoteEditor({
   note: NoteNode
   onChange: (patch: Partial<NoteNode>) => void
 }) {
-  const [preview, setPreview] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [focusEditor, setFocusEditor] = useState(true)
+
+  const handleChange = useCallback((content: string) => onChange({ content }), [onChange])
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -232,15 +306,15 @@ function NoteEditor({
       />
 
       {/* Toolbar */}
-      <div className="flex flex-wrap gap-0.5 mb-2">
+      <div className="flex flex-wrap gap-0.5 mb-2 shrink-0">
         {TOOLBAR.map(action => (
           <button
             key={action.label}
             title={action.title}
             onMouseDown={e => {
-              e.preventDefault() // keep textarea focus
+              e.preventDefault()
               if (textareaRef.current) {
-                applyAction(textareaRef.current, action, note.content, content => onChange({ content }))
+                applyAction(textareaRef.current, action, note.content, handleChange)
               }
             }}
             className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-amber-900/40 border border-amber-800/30 text-amber-400 hover:bg-amber-800/50 hover:text-amber-200 transition-colors"
@@ -249,35 +323,46 @@ function NoteEditor({
           </button>
         ))}
         <div className="flex-1" />
-        <button
-          onClick={() => setPreview(p => !p)}
-          className={`px-2 py-0.5 text-[10px] rounded border transition-colors ${
-            preview
-              ? 'bg-amber-700/40 border-amber-600/50 text-amber-200'
-              : 'border-amber-800/30 text-amber-600/60 hover:text-amber-400'
-          }`}
-        >
-          {preview ? 'Edit' : 'Preview'}
-        </button>
+        {/* Focus indicator */}
+        <div className="flex rounded border border-amber-800/30 overflow-hidden text-[9px]">
+          <button
+            onClick={() => setFocusEditor(true)}
+            className={`px-2 py-0.5 transition-colors ${focusEditor ? 'bg-amber-700/40 text-amber-200' : 'text-amber-700/50 hover:text-amber-400'}`}
+          >Edit</button>
+          <button
+            onClick={() => setFocusEditor(false)}
+            className={`px-2 py-0.5 transition-colors ${!focusEditor ? 'bg-amber-700/40 text-amber-200' : 'text-amber-700/50 hover:text-amber-400'}`}
+          >Focus preview</button>
+        </div>
       </div>
 
-      {/* Edit / Preview */}
-      {preview ? (
-        <div className="flex-1 overflow-y-auto prose prose-invert prose-amber prose-sm max-w-none bg-amber-950/40 rounded-xl border border-amber-800/25 p-4 text-amber-200/80 [&_h1]:text-amber-100 [&_h2]:text-amber-200 [&_h3]:text-amber-300 [&_strong]:text-amber-100 [&_code]:bg-amber-900/60 [&_code]:px-1 [&_code]:rounded [&_blockquote]:border-l-amber-700 [&_hr]:border-amber-800/40 [&_li]:marker:text-amber-600">
-          {note.content
-            ? <ReactMarkdown>{note.content}</ReactMarkdown>
-            : <span className="text-amber-800/40 italic text-xs">Nothing to preview yet.</span>
-          }
+      {/* Split pane — editor left, live preview right */}
+      <div className="flex flex-1 min-h-0 gap-3">
+        {/* Editor */}
+        <div className={`flex flex-col min-h-0 transition-all ${focusEditor ? 'flex-1' : 'w-0 overflow-hidden opacity-0'}`}>
+          <textarea
+            ref={textareaRef}
+            value={note.content}
+            onChange={e => handleChange(e.target.value)}
+            onKeyDown={e => handleSmartKey(e, note.content, handleChange)}
+            placeholder={`# Note title\n\nWrite in markdown…\n\n**bold**, *italic*, ~~strike~~\n- bullet list\n1. ordered list\n- [ ] task item\n> blockquote\n\`inline code\``}
+            className="flex-1 min-h-0 resize-none bg-amber-950/40 border border-amber-800/25 rounded-xl p-4 text-sm text-amber-200/80 placeholder:text-amber-700/30 focus:outline-none focus:border-amber-700/40 font-mono leading-relaxed"
+          />
         </div>
-      ) : (
-        <textarea
-          ref={textareaRef}
-          value={note.content}
-          onChange={e => onChange({ content: e.target.value })}
-          placeholder="Write in markdown…"
-          className="flex-1 min-h-0 resize-none bg-amber-950/40 border border-amber-800/25 rounded-xl p-4 text-sm text-amber-200/80 placeholder:text-amber-800/40 focus:outline-none focus:border-amber-700/40 font-mono leading-relaxed"
-        />
-      )}
+
+        {/* Divider */}
+        <div className={`w-px bg-amber-800/20 shrink-0 self-stretch transition-all ${focusEditor ? '' : 'hidden'}`} />
+
+        {/* Live preview */}
+        <div className={`min-h-0 overflow-y-auto transition-all ${focusEditor ? 'flex-1' : 'flex-1'}`}>
+          <div className={PREVIEW_CLS + ' h-full'}>
+            {note.content
+              ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{note.content}</ReactMarkdown>
+              : <span className="text-amber-800/30 italic text-xs select-none">Preview appears here as you type…</span>
+            }
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -293,8 +378,7 @@ export default function NotesTab({ noteTree, onChange }: Props) {
 
   function addNote(parentId: string | null) {
     const node: NoteNode = { id: uuid(), title: 'New note', content: '', children: [] }
-    const next = insertNode(noteTree, parentId, node)
-    onChange(next)
+    onChange(insertNode(noteTree, parentId, node))
     setSelectedId(node.id)
   }
 
@@ -316,7 +400,7 @@ export default function NotesTab({ noteTree, onChange }: Props) {
   return (
     <div className="flex gap-0 h-[calc(100vh-160px)] min-h-0">
       {/* ── Sidebar ── */}
-      <div className="w-52 shrink-0 flex flex-col border-r border-amber-800/25 pr-2 mr-4 overflow-y-auto">
+      <div className="w-48 shrink-0 flex flex-col border-r border-amber-800/25 pr-2 mr-3 overflow-y-auto">
         <div className="flex items-center justify-between mb-2">
           <span className="text-[9px] uppercase tracking-widest text-amber-700/50">Notes</span>
           <button
