@@ -7,20 +7,18 @@ import { RangeSetBuilder } from '@codemirror/state'
 import { syntaxTree } from '@codemirror/language'
 import { markdown } from '@codemirror/lang-markdown'
 import { defaultKeymap, historyKeymap, history, indentWithTab } from '@codemirror/commands'
+export type { EditorView }
 
 // ── Obsidian-style decoration plugin ─────────────────────────────────────────
-// Hides markdown syntax marks on lines the cursor is NOT on.
-// When cursor is on a line → raw markdown. When cursor moves away → rendered.
+// Hides markdown syntax marks when the cursor is NOT inside the marked token.
+// Token-level: **the** renders as soon as cursor leaves that span, even mid-line.
 
 function buildDecos(view: EditorView): DecorationSet {
   const sel = view.state.selection.main
-  const selMinLine = view.state.doc.lineAt(Math.min(sel.from, sel.to)).number
-  const selMaxLine = view.state.doc.lineAt(Math.max(sel.from, sel.to)).number
 
-  // Returns true if the node's own start line is within the cursor/selection range
-  function onActiveLine(nodeFrom: number): boolean {
-    const line = view.state.doc.lineAt(nodeFrom).number
-    return line >= selMinLine && line <= selMaxLine
+  // True if cursor/selection overlaps this node's document range
+  function onActive(nodeFrom: number, nodeTo: number): boolean {
+    return sel.from <= nodeTo && sel.to >= nodeFrom
   }
 
   const collected: Array<{ from: number; to: number; deco: Decoration }> = []
@@ -34,7 +32,8 @@ function buildDecos(view: EditorView): DecorationSet {
         case 'ATXHeading4':
         case 'ATXHeading5':
         case 'ATXHeading6': {
-          if (onActiveLine(node.from)) return false
+          // ATXHeading spans the full line — cursor anywhere on that line keeps it raw
+          if (onActive(node.from, node.to)) return false
           const level = node.name.charCodeAt(10) - 48
           const headerMark = node.node.firstChild
           if (headerMark?.name === 'HeaderMark') {
@@ -46,7 +45,7 @@ function buildDecos(view: EditorView): DecorationSet {
         }
 
         case 'StrongEmphasis': {
-          if (onActiveLine(node.from)) return false
+          if (onActive(node.from, node.to)) return false
           const first = node.node.firstChild
           const last  = node.node.lastChild
           if (first && last && first.from !== last.from) {
@@ -59,7 +58,7 @@ function buildDecos(view: EditorView): DecorationSet {
         }
 
         case 'Emphasis': {
-          if (onActiveLine(node.from)) return false
+          if (onActive(node.from, node.to)) return false
           const first = node.node.firstChild
           const last  = node.node.lastChild
           if (first && last && first.from !== last.from) {
@@ -72,7 +71,7 @@ function buildDecos(view: EditorView): DecorationSet {
         }
 
         case 'Strikethrough': {
-          if (onActiveLine(node.from)) return false
+          if (onActive(node.from, node.to)) return false
           const first = node.node.firstChild
           const last  = node.node.lastChild
           if (first && last && first.from !== last.from) {
@@ -85,7 +84,7 @@ function buildDecos(view: EditorView): DecorationSet {
         }
 
         case 'InlineCode': {
-          if (onActiveLine(node.from)) return false
+          if (onActive(node.from, node.to)) return false
           const first = node.node.firstChild
           const last  = node.node.lastChild
           if (first && last && first.from !== last.from) {
@@ -98,24 +97,18 @@ function buildDecos(view: EditorView): DecorationSet {
         }
 
         case 'HorizontalRule':
-          if (!onActiveLine(node.from))
+          if (!onActive(node.from, node.to))
             collected.push({ from: node.from, to: node.to, deco: Decoration.mark({ class: 'cm-md-hr' }) })
           return false
 
         case 'QuoteMark':
-          if (!onActiveLine(node.from))
+          if (!onActive(node.from, node.to))
             collected.push({ from: node.from, to: node.to, deco: Decoration.replace({}) })
           return false
-
-        // Blockquote: don't add a span-level mark — QuoteMark replace above handles it.
-        // A Blockquote mark would share the same `from` as its child QuoteMark, which
-        // corrupts RangeSetBuilder state and silently drops all subsequent decorations.
       }
     },
   })
 
-  // Sort strictly by from; all pushed ranges within a node have distinct `from` values
-  // so there are no same-position conflicts.
   collected.sort((a, b) => a.from - b.from)
 
   try {
@@ -213,13 +206,16 @@ interface Props {
   onChange: (v: string) => void
   placeholder?: string
   className?: string
+  onMount?: (view: EditorView) => void
 }
 
-export default function MarkdownEditor({ value, onChange, placeholder, className }: Props) {
+export default function MarkdownEditor({ value, onChange, placeholder, className, onMount }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef      = useRef<EditorView | null>(null)
   const onChangeRef  = useRef(onChange)
+  const onMountRef   = useRef(onMount)
   onChangeRef.current = onChange
+  onMountRef.current  = onMount
 
   // Create editor once
   useEffect(() => {
@@ -246,6 +242,7 @@ export default function MarkdownEditor({ value, onChange, placeholder, className
     })
 
     viewRef.current = view
+    onMountRef.current?.(view)
     return () => { view.destroy(); viewRef.current = null }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

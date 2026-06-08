@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { NoteNode } from '../types'
 import { v4 as uuid } from '../uuid'
-import MarkdownEditor from './MarkdownEditor'
+import MarkdownEditor, { type EditorView } from './MarkdownEditor'
 
 interface Props {
   noteTree: NoteNode[]
@@ -153,39 +153,29 @@ const TOOLBAR: ToolbarAction[] = [
   { label: '❝',   title: 'Blockquote',    prefix: '> ' },
 ]
 
-function applyAction(
-  textarea: HTMLTextAreaElement,
-  action: ToolbarAction,
-  value: string,
-  onChange: (v: string) => void,
-) {
-  const start = textarea.selectionStart
-  const end   = textarea.selectionEnd
-  const sel   = value.slice(start, end)
-
-  let next = value
-  let newStart = start
-  let newEnd   = end
+function applyAction(view: EditorView, action: ToolbarAction) {
+  const { from, to } = view.state.selection.main
+  const sel = view.state.sliceDoc(from, to)
 
   if (action.wrap) {
     const [before, after] = action.wrap
-    next = value.slice(0, start) + before + sel + after + value.slice(end)
-    newStart = start + before.length
-    newEnd   = newStart + sel.length
+    view.dispatch({
+      changes: { from, to, insert: before + sel + after },
+      selection: { anchor: from + before.length, head: from + before.length + sel.length },
+    })
   } else if (action.prefix) {
-    const lineStart = value.lastIndexOf('\n', start - 1) + 1
-    next = value.slice(0, lineStart) + action.prefix + value.slice(lineStart)
-    newStart = newEnd = start + action.prefix.length
+    const line = view.state.doc.lineAt(from)
+    view.dispatch({
+      changes: { from: line.from, to: line.from, insert: action.prefix },
+      selection: { anchor: from + action.prefix.length },
+    })
   } else if (action.block) {
-    next = value.slice(0, start) + action.block + value.slice(end)
-    newStart = newEnd = start + action.block.length
+    view.dispatch({
+      changes: { from, to, insert: action.block },
+      selection: { anchor: from + action.block.length },
+    })
   }
-
-  onChange(next)
-  requestAnimationFrame(() => {
-    textarea.focus()
-    textarea.setSelectionRange(newStart, newEnd)
-  })
+  view.focus()
 }
 
 
@@ -224,7 +214,7 @@ function NoteEditor({
   note: NoteNode
   onChange: (patch: Partial<NoteNode>) => void
 }) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const viewRef = useRef<EditorView | null>(null)
   const [preview, setPreview] = useState(false)
 
   return (
@@ -245,9 +235,7 @@ function NoteEditor({
             title={action.title}
             onMouseDown={e => {
               e.preventDefault()
-              if (textareaRef.current) {
-                applyAction(textareaRef.current, action, note.content, v => onChange({ content: v }))
-              }
+              if (viewRef.current) applyAction(viewRef.current, action)
             }}
             className={`px-1.5 py-0.5 text-[10px] font-mono rounded bg-amber-900/40 border border-amber-800/30 text-amber-400 hover:bg-amber-800/50 hover:text-amber-200 transition-colors ${preview ? 'opacity-30 pointer-events-none' : ''}`}
           >
@@ -278,7 +266,8 @@ function NoteEditor({
           key={note.id}
           value={note.content}
           onChange={content => onChange({ content })}
-          placeholder={'# Heading\n\nWrite in markdown — formatting renders as you type.\nClick a line to edit it.'}
+          onMount={v => { viewRef.current = v }}
+          placeholder={'# Heading\n\nWrite in markdown — formatting renders as you type.\nClick into any formatted text to edit it.'}
         />
       )}
     </div>
