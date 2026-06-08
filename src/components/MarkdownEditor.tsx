@@ -104,36 +104,27 @@ function buildDecos(view: EditorView): DecorationSet {
 
         case 'QuoteMark':
           if (!onActiveLine(node.from))
-            collected.push({ from: node.from, to: node.to + 1, deco: Decoration.replace({}) })
+            collected.push({ from: node.from, to: node.to, deco: Decoration.replace({}) })
           return false
 
-        case 'Blockquote':
-          if (!onActiveLine(node.from))
-            collected.push({ from: node.from, to: node.to, deco: Decoration.mark({ class: 'cm-md-blockquote' }) })
-          break
+        // Blockquote: don't add a span-level mark — QuoteMark replace above handles it.
+        // A Blockquote mark would share the same `from` as its child QuoteMark, which
+        // corrupts RangeSetBuilder state and silently drops all subsequent decorations.
       }
     },
   })
 
-  // Sort by from ascending; for same from, wider ranges first (marks before replaces)
-  collected.sort((a, b) => a.from - b.from || (b.to - b.from) - (a.to - a.from))
+  // Sort strictly by from; all pushed ranges within a node have distinct `from` values
+  // so there are no same-position conflicts.
+  collected.sort((a, b) => a.from - b.from)
 
-  const builder = new RangeSetBuilder<Decoration>()
-  let lastReplTo = -1
-
-  for (const { from, to, deco } of collected) {
-    const isReplace = (deco as unknown as { spec: { widget?: unknown } }).spec?.widget !== undefined
-      || (deco.startSide < 0 && deco.endSide < 0 && !('class' in (deco as unknown as { spec: object }).spec))
-
-    if (isReplace) {
-      if (from < lastReplTo) continue  // skip overlapping replaces
-      lastReplTo = to
-    }
-
-    try { builder.add(from, to, deco) } catch { /* skip ordering violations */ }
+  try {
+    const builder = new RangeSetBuilder<Decoration>()
+    for (const { from, to, deco } of collected) builder.add(from, to, deco)
+    return builder.finish()
+  } catch {
+    return Decoration.none
   }
-
-  return builder.finish()
 }
 
 const obsidianPlugin = ViewPlugin.fromClass(
