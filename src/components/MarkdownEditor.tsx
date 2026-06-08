@@ -14,19 +14,19 @@ import { defaultKeymap, historyKeymap, history, indentWithTab } from '@codemirro
 
 function buildDecos(view: EditorView): DecorationSet {
   const sel = view.state.selection.main
-  const selFromLine = view.state.doc.lineAt(sel.from).number
-  const selToLine   = view.state.doc.lineAt(sel.to).number
+  const selMinLine = view.state.doc.lineAt(Math.min(sel.from, sel.to)).number
+  const selMaxLine = view.state.doc.lineAt(Math.max(sel.from, sel.to)).number
+
+  // Returns true if the node's own start line is within the cursor/selection range
+  function onActiveLine(nodeFrom: number): boolean {
+    const line = view.state.doc.lineAt(nodeFrom).number
+    return line >= selMinLine && line <= selMaxLine
+  }
 
   const collected: Array<{ from: number; to: number; deco: Decoration }> = []
 
   syntaxTree(view.state).iterate({
     enter(node) {
-      const nodeFromLine = view.state.doc.lineAt(node.from).number
-      const nodeToLine   = view.state.doc.lineAt(Math.min(node.to, view.state.doc.length - 1)).number
-
-      // If any part of this node's line overlaps the selection, show raw
-      if (nodeToLine >= selFromLine && nodeFromLine <= selToLine) return false
-
       switch (node.name) {
         case 'ATXHeading1':
         case 'ATXHeading2':
@@ -34,21 +34,19 @@ function buildDecos(view: EditorView): DecorationSet {
         case 'ATXHeading4':
         case 'ATXHeading5':
         case 'ATXHeading6': {
-          const level = node.name.charCodeAt(10) - 48 // last char digit
+          if (onActiveLine(node.from)) return false
+          const level = node.name.charCodeAt(10) - 48
           const headerMark = node.node.firstChild
           if (headerMark?.name === 'HeaderMark') {
             collected.push({ from: headerMark.from, to: headerMark.to, deco: Decoration.replace({}) })
-            if (headerMark.to < node.to) {
-              collected.push({
-                from: headerMark.to, to: node.to,
-                deco: Decoration.mark({ class: `cm-md-h${level}` }),
-              })
-            }
+            if (headerMark.to < node.to)
+              collected.push({ from: headerMark.to, to: node.to, deco: Decoration.mark({ class: `cm-md-h${level}` }) })
           }
           return false
         }
 
         case 'StrongEmphasis': {
+          if (onActiveLine(node.from)) return false
           const first = node.node.firstChild
           const last  = node.node.lastChild
           if (first && last && first.from !== last.from) {
@@ -61,6 +59,7 @@ function buildDecos(view: EditorView): DecorationSet {
         }
 
         case 'Emphasis': {
+          if (onActiveLine(node.from)) return false
           const first = node.node.firstChild
           const last  = node.node.lastChild
           if (first && last && first.from !== last.from) {
@@ -73,6 +72,7 @@ function buildDecos(view: EditorView): DecorationSet {
         }
 
         case 'Strikethrough': {
+          if (onActiveLine(node.from)) return false
           const first = node.node.firstChild
           const last  = node.node.lastChild
           if (first && last && first.from !== last.from) {
@@ -85,6 +85,7 @@ function buildDecos(view: EditorView): DecorationSet {
         }
 
         case 'InlineCode': {
+          if (onActiveLine(node.from)) return false
           const first = node.node.firstChild
           const last  = node.node.lastChild
           if (first && last && first.from !== last.from) {
@@ -97,15 +98,18 @@ function buildDecos(view: EditorView): DecorationSet {
         }
 
         case 'HorizontalRule':
-          collected.push({ from: node.from, to: node.to, deco: Decoration.mark({ class: 'cm-md-hr' }) })
+          if (!onActiveLine(node.from))
+            collected.push({ from: node.from, to: node.to, deco: Decoration.mark({ class: 'cm-md-hr' }) })
           return false
 
         case 'QuoteMark':
-          collected.push({ from: node.from, to: node.to + 1, deco: Decoration.replace({}) })
+          if (!onActiveLine(node.from))
+            collected.push({ from: node.from, to: node.to + 1, deco: Decoration.replace({}) })
           return false
 
         case 'Blockquote':
-          collected.push({ from: node.from, to: node.to, deco: Decoration.mark({ class: 'cm-md-blockquote' }) })
+          if (!onActiveLine(node.from))
+            collected.push({ from: node.from, to: node.to, deco: Decoration.mark({ class: 'cm-md-blockquote' }) })
           break
       }
     },
