@@ -26,6 +26,7 @@ export interface ClassProgressionData {
   subclassName?: string       // resolved subclass display name, if matched
   hitDie: number
   colLabels: string[]
+  colGroups: Array<{ title?: string; count: number }>
   levels: ClassLevel[]
   featureMap: Map<string, ClassFeatureDesc>  // key: `${name}|${level}`
   subclasses: SubclassOption[]               // all available subclasses for this edition
@@ -39,7 +40,7 @@ function profBonus(level: number): number {
 
 function cellStr(cell: unknown): string {
   if (cell === null || cell === undefined) return '—'
-  if (typeof cell === 'number') return String(cell)
+  if (typeof cell === 'number') return cell === 0 ? '—' : String(cell)
   if (typeof cell === 'string') return stripTags(cell) || '—'
   if (typeof cell === 'object') {
     const o = cell as Record<string, unknown>
@@ -156,12 +157,17 @@ export async function fetchClassProgression(
   // ── Column labels from classTableGroups ──────────────────────────────────
   const tableGroups = (classEntry.classTableGroups as Array<Record<string, unknown>> | undefined) ?? []
   const allColLabels: string[] = []
+  const allColGroups: Array<{ title?: string; count: number }> = []
   const allGroupRows: unknown[][] = Array.from({ length: 20 }, () => [])
 
   for (const group of tableGroups) {
     const labels = (group.colLabels as string[] | undefined) ?? []
-    const rows   = (group.rows as unknown[][] | undefined) ?? []
+    const rows   = (group.rows as unknown[][] | undefined)
+               ?? (group.rowsSpellProgression as unknown[][] | undefined)
+               ?? []
+    const title  = typeof group.title === 'string' ? group.title : undefined
     allColLabels.push(...labels.map(stripTags))
+    allColGroups.push({ title, count: labels.length })
     for (let i = 0; i < 20; i++) {
       const rowCells = rows[i] ?? []
       allGroupRows[i].push(...rowCells)
@@ -254,6 +260,7 @@ export async function fetchClassProgression(
     subclassName: matchedSubclass ? (matchedSubclass.name as string) : undefined,
     hitDie: hd,
     colLabels: allColLabels,
+    colGroups: allColGroups,
     levels,
     featureMap,
     subclasses,

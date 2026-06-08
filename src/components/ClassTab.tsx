@@ -106,7 +106,18 @@ export default function ClassTab({ className, subclass }: Props) {
   // Determine which columns to show — skip all-"—" columns
   const visibleColIdxs = data.colLabels
     .map((_, i) => i)
-    .filter(i => data.levels.some(l => l.columns[i] && l.columns[i] !== '—'))
+    .filter(i => data.levels.some(l => l.columns[i] !== undefined && l.columns[i] !== '—'))
+
+  // Build visible group info for the spanning header row
+  const visibleGroups: Array<{ title?: string; visibleCount: number }> = []
+  {
+    let colOffset = 0
+    for (const g of data.colGroups) {
+      const count = visibleColIdxs.filter(i => i >= colOffset && i < colOffset + g.count).length
+      if (count > 0) visibleGroups.push({ title: g.title, visibleCount: count })
+      colOffset += g.count
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -139,6 +150,23 @@ export default function ClassTab({ className, subclass }: Props) {
       <div className="overflow-x-auto rounded-xl border border-amber-800/25">
         <table className="w-full text-xs border-collapse">
           <thead>
+            {/* Group title row — only rendered if any group has a title */}
+            {visibleGroups.some(g => g.title) && (
+              <tr className="bg-amber-950/80 text-amber-500/60 text-[8px] uppercase tracking-widest">
+                <th colSpan={3} />
+                {visibleGroups.map((g, gi) =>
+                  g.visibleCount > 0 ? (
+                    <th
+                      key={gi}
+                      colSpan={g.visibleCount}
+                      className="px-3 py-1 text-center border-l border-amber-800/30 whitespace-nowrap"
+                    >
+                      {g.title ?? ''}
+                    </th>
+                  ) : null
+                )}
+              </tr>
+            )}
             <tr className="bg-amber-950/70 text-amber-600/70 uppercase tracking-widest text-[9px]">
               <th className="px-3 py-2 text-left w-12">Level</th>
               <th className="px-3 py-2 text-center w-10">Prof</th>
