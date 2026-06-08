@@ -140,7 +140,7 @@ export default function ClassTab({ className, subclass }: Props) {
             </p>
           )}
         </div>
-        <EditionToggle value={edition} onChange={v => { if (v !== 'all') setEdition(v) }} />
+        <EditionToggle value={edition} onChange={v => setEdition(v as ProgressionEdition)} hideAll />
       </div>
 
       {/* Feature detail panel */}

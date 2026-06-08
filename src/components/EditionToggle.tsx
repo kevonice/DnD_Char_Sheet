@@ -3,6 +3,7 @@ import type { Edition } from '../data/fiveEtools'
 interface Props {
   value: Edition
   onChange: (e: Edition) => void
+  hideAll?: boolean
 }
 
 const OPTIONS: { key: Edition; label: string; title: string }[] = [
@@ -11,10 +12,10 @@ const OPTIONS: { key: Edition; label: string; title: string }[] = [
   { key: 'all', label: 'All', title: 'Every source' },
 ]
 
-export default function EditionToggle({ value, onChange }: Props) {
+export default function EditionToggle({ value, onChange, hideAll }: Props) {
   return (
     <div className="inline-flex rounded border border-amber-800/40 overflow-hidden text-[10px]">
-      {OPTIONS.map(opt => (
+      {OPTIONS.filter(opt => !(hideAll && opt.key === 'all')).map(opt => (
         <button
           key={opt.key}
           title={opt.title}
