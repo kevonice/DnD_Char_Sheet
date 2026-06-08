@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import {
-  EditorView, ViewPlugin, ViewUpdate, Decoration, keymap, placeholder as cmPlaceholder,
+  EditorView, ViewPlugin, ViewUpdate, Decoration, WidgetType, keymap, placeholder as cmPlaceholder,
 } from '@codemirror/view'
 import type { DecorationSet } from '@codemirror/view'
 import { RangeSetBuilder } from '@codemirror/state'
@@ -8,6 +8,18 @@ import { syntaxTree } from '@codemirror/language'
 import { markdown } from '@codemirror/lang-markdown'
 import { defaultKeymap, historyKeymap, history, indentWithTab } from '@codemirror/commands'
 export type { EditorView }
+
+// ── Bullet widget ─────────────────────────────────────────────────────────────
+
+class BulletWidget extends WidgetType {
+  toDOM() {
+    const span = document.createElement('span')
+    span.textContent = '•'
+    span.className = 'cm-md-bullet'
+    return span
+  }
+  eq() { return true }
+}
 
 // ── Obsidian-style decoration plugin ─────────────────────────────────────────
 // Hides markdown syntax marks when the cursor is NOT inside the marked token.
@@ -105,6 +117,21 @@ function buildDecos(view: EditorView): DecorationSet {
           if (!onActive(node.from, node.to))
             collected.push({ from: node.from, to: node.to, deco: Decoration.replace({}) })
           return false
+
+        case 'ListMark': {
+          // Use parent ListItem range so cursor anywhere in that item keeps mark visible
+          const listItem = node.node.parent
+          const activeRange = listItem ?? node.node
+          if (onActive(activeRange.from, activeRange.to)) return false
+          const markText = view.state.sliceDoc(node.from, node.to)
+          if (markText === '*' || markText === '-' || markText === '+') {
+            collected.push({
+              from: node.from, to: node.to,
+              deco: Decoration.replace({ widget: new BulletWidget() }),
+            })
+          }
+          return false
+        }
       }
     },
   })
@@ -119,6 +146,48 @@ function buildDecos(view: EditorView): DecorationSet {
     return Decoration.none
   }
 }
+
+// ── Color span plugin ─────────────────────────────────────────────────────────
+// Detects <span style="color:HEX">text</span> and renders it with the color.
+
+const COLOR_RE = /<span style="color:([^"]{1,30})">((?:[^<]|<(?!\/span>))*?)<\/span>/g
+
+function buildColorDecos(view: EditorView): DecorationSet {
+  const sel  = view.state.selection.main
+  const text = view.state.doc.toString()
+  const collected: Array<{ from: number; to: number; deco: Decoration }> = []
+
+  for (const match of text.matchAll(COLOR_RE)) {
+    const fullFrom   = match.index!
+    const color      = match[1]
+    const openTag    = `<span style="color:${color}">`
+    const contentFrom = fullFrom + openTag.length
+    const contentTo   = contentFrom + match[2].length
+    const fullTo      = contentTo + '</span>'.length
+
+    // If cursor is anywhere inside this span, show raw HTML
+    if (sel.from <= fullTo && sel.to >= fullFrom) continue
+
+    collected.push({ from: fullFrom,   to: contentFrom, deco: Decoration.replace({}) })
+    collected.push({ from: contentFrom, to: contentTo,   deco: Decoration.mark({ attributes: { style: `color:${color}` } }) })
+    collected.push({ from: contentTo,   to: fullTo,      deco: Decoration.replace({}) })
+  }
+
+  collected.sort((a, b) => a.from - b.from)
+  try {
+    const builder = new RangeSetBuilder<Decoration>()
+    for (const { from, to, deco } of collected) builder.add(from, to, deco)
+    return builder.finish()
+  } catch { return Decoration.none }
+}
+
+const colorPlugin = ViewPlugin.fromClass(class {
+  decorations: DecorationSet
+  constructor(view: EditorView) { this.decorations = buildColorDecos(view) }
+  update(update: ViewUpdate) {
+    if (update.docChanged || update.selectionSet) this.decorations = buildColorDecos(update.view)
+  }
+}, { decorations: v => v.decorations })
 
 const obsidianPlugin = ViewPlugin.fromClass(
   class {
@@ -180,6 +249,7 @@ const amberTheme = EditorView.theme({
     borderBottom: '1px solid rgba(180, 120, 20, 0.4)',
     color: 'transparent',
   },
+  '.cm-md-bullet': { color: 'rgb(251,191,36)', marginRight: '6px', fontSize: '1em' },
   '.cm-md-blockquote': {
     borderLeft: '2px solid rgba(180, 120, 20, 0.5)',
     paddingLeft: '12px',
@@ -224,6 +294,7 @@ export default function MarkdownEditor({ value, onChange, placeholder, className
     const extensions = [
       markdown(),
       obsidianPlugin,
+      colorPlugin,
       amberTheme,
       EditorView.lineWrapping,
       history(),

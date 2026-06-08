@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import rehypeRaw from 'rehype-raw'
 import type { NoteNode } from '../types'
 import { v4 as uuid } from '../uuid'
 import MarkdownEditor, { type EditorView } from './MarkdownEditor'
@@ -216,6 +217,24 @@ function NoteEditor({
 }) {
   const viewRef = useRef<EditorView | null>(null)
   const [preview, setPreview] = useState(false)
+  const [colorOpen, setColorOpen] = useState(false)
+
+  const COLORS = [
+    { hex: '#f87171', label: 'Red' },
+    { hex: '#fb923c', label: 'Orange' },
+    { hex: '#facc15', label: 'Yellow' },
+    { hex: '#4ade80', label: 'Green' },
+    { hex: '#60a5fa', label: 'Blue' },
+    { hex: '#c084fc', label: 'Purple' },
+    { hex: '#f472b6', label: 'Pink' },
+    { hex: '#ffffff', label: 'White' },
+    { hex: '#9ca3af', label: 'Gray' },
+  ]
+
+  function applyColor(hex: string) {
+    setColorOpen(false)
+    if (viewRef.current) applyAction(viewRef.current, { label: '', title: '', wrap: [`<span style="color:${hex}">`, '</span>'] })
+  }
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -243,6 +262,35 @@ function NoteEditor({
           </button>
         ))}
         <div className="flex-1" />
+
+        {/* Color picker */}
+        <div className="relative">
+          <button
+            onMouseDown={e => { e.preventDefault(); setColorOpen(o => !o) }}
+            title="Text color"
+            className="px-1.5 py-0.5 text-[10px] rounded bg-amber-900/40 border border-amber-800/30 text-amber-400 hover:bg-amber-800/50 hover:text-amber-200 transition-colors"
+          >
+            🎨
+          </button>
+          {colorOpen && (
+            <div className="absolute right-0 top-7 z-50 bg-amber-950 border border-amber-800/40 rounded-lg p-2 flex flex-wrap gap-1.5 w-28 shadow-xl">
+              {COLORS.map(c => (
+                <button
+                  key={c.hex}
+                  title={c.label}
+                  onMouseDown={e => { e.preventDefault(); applyColor(c.hex) }}
+                  className="w-5 h-5 rounded-full border border-amber-900/60 hover:scale-110 transition-transform shrink-0"
+                  style={{ background: c.hex }}
+                />
+              ))}
+              <button
+                onMouseDown={e => { e.preventDefault(); setColorOpen(false) }}
+                className="text-[9px] text-amber-700/60 hover:text-amber-400 w-full text-center mt-0.5"
+              >close</button>
+            </div>
+          )}
+        </div>
+
         <button
           onClick={() => setPreview(p => !p)}
           className={`px-2 py-0.5 text-[9px] rounded border transition-colors ${
@@ -257,7 +305,7 @@ function NoteEditor({
       {preview ? (
         <div className={PREVIEW_CLS + ' flex-1 bg-amber-950/40 rounded-xl border border-amber-800/25'}>
           {note.content
-            ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{note.content}</ReactMarkdown>
+            ? <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{note.content}</ReactMarkdown>
             : <span className="text-amber-800/30 italic text-xs">Nothing written yet.</span>
           }
         </div>
