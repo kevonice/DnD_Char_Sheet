@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import type { NoteNode } from '../types'
 import { v4 as uuid } from '../uuid'
 import MarkdownEditor, { type EditorView } from './MarkdownEditor'
@@ -9,6 +10,18 @@ import MarkdownEditor, { type EditorView } from './MarkdownEditor'
 interface Props {
   noteTree: NoteNode[]
   onChange: (tree: NoteNode[]) => void
+}
+
+// Sanitize raw HTML in previews: keep markdown defaults, additionally allow
+// <span style> so the editor's color/font formatting renders, nothing else.
+// style cannot execute script in modern browsers, so this is safe to permit.
+const sanitizeSchema = {
+  ...defaultSchema,
+  tagNames: [...(defaultSchema.tagNames ?? []), 'span'],
+  attributes: {
+    ...defaultSchema.attributes,
+    span: ['style'],
+  },
 }
 
 // ── Tree helpers ──────────────────────────────────────────────────────────────
@@ -361,7 +374,7 @@ function NoteEditor({
       {preview ? (
         <div className={PREVIEW_CLS + ' flex-1 bg-amber-950/40 rounded-xl border border-amber-800/25'}>
           {note.content
-            ? <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{note.content}</ReactMarkdown>
+            ? <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}>{note.content}</ReactMarkdown>
             : <span className="text-amber-800/30 italic text-xs">Nothing written yet.</span>
           }
         </div>
