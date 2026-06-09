@@ -21,6 +21,7 @@ import NotesTab from './components/NotesTab'
 import ProficienciesPanel from './components/ProficienciesPanel'
 import ChronicleTab from './components/ChronicleTab'
 import MapsTab from './components/MapsTab'
+import DMMode from './components/DMMode'
 import AppearancePanel, { overrideToTheme } from './components/AppearancePanel'
 import { themeForClassAndSubclass, themeVars, bgVars, DEFAULT_THEME } from './data/classThemes'
 import { detectChanges } from './changelog'
@@ -91,6 +92,9 @@ export default function App() {
     () => !localStorage.getItem(CREATED_KEY)
   )
   const [glyphOpen, setGlyphOpen] = useState(false)
+  const [dmMode, setDmMode] = useState<boolean>(
+    () => new URLSearchParams(window.location.search).has('dm')
+  )
   const glyphRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!glyphOpen) return
@@ -195,6 +199,10 @@ export default function App() {
     }
     reader.readAsText(file)
     e.target.value = ''   // reset so same file can be re-imported
+  }
+
+  if (dmMode) {
+    return <DMMode onExit={() => setDmMode(false)} />
   }
 
   if (showCreator) {
@@ -362,6 +370,13 @@ export default function App() {
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-900/50 text-amber-700/40 hover:border-amber-700/50 hover:text-amber-500 text-xs font-bold uppercase tracking-widest transition-colors"
               >
                 + New
+              </button>
+              <button
+                onClick={() => setDmMode(true)}
+                title="DM dashboard — import your party's character sheets"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-900/50 text-amber-700/40 hover:border-amber-700/50 hover:text-amber-500 text-xs font-bold uppercase tracking-widest transition-colors"
+              >
+                🎲 DM
               </button>
             </div>
           </div>
