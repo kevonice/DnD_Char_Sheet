@@ -252,7 +252,18 @@ function NoteEditor({
 
   function applyColor(hex: string) {
     setColorOpen(false)
-    if (viewRef.current) applyAction(viewRef.current, { label: '', title: '', wrap: [`<span style="color:${hex}">`, '</span>'] })
+    if (!viewRef.current) return
+    if (hex === 'remove') {
+      // Strip any span tags from the selection
+      const view = viewRef.current
+      const { from, to } = view.state.selection.main
+      const selected = view.state.sliceDoc(from, to)
+      const stripped = selected.replace(/<span style="[^"]*">([\s\S]*?)<\/span>/g, '$1')
+      if (stripped !== selected) view.dispatch({ changes: { from, to, insert: stripped } })
+      view.focus()
+    } else {
+      applyAction(viewRef.current, { label: '', title: '', wrap: [`<span style="color:${hex}">`, '</span>'] })
+    }
   }
 
   function applyFont(name: string) {
@@ -314,24 +325,24 @@ function NoteEditor({
             onMouseDown={e => { e.preventDefault(); setColorOpen(o => !o); setFontOpen(false) }}
             title="Text color"
             className="px-1.5 py-0.5 text-[10px] rounded bg-amber-900/40 border border-amber-800/30 text-amber-400 hover:bg-amber-800/50 hover:text-amber-200 transition-colors"
-          >
-            🎨
-          </button>
+          >A<span className="text-[8px] align-sub">▾</span></button>
           {colorOpen && (
-            <div className="absolute right-0 top-7 z-50 bg-amber-950 border border-amber-800/40 rounded-lg p-2 flex flex-wrap gap-1.5 w-28 shadow-xl">
+            <div className="absolute right-0 top-7 z-50 bg-amber-950 border border-amber-800/40 rounded-lg py-1 w-36 shadow-xl max-h-64 overflow-y-auto">
+              <button
+                onMouseDown={e => { e.preventDefault(); applyColor('remove') }}
+                className="w-full text-left px-3 py-1.5 text-xs text-amber-600/70 hover:bg-amber-800/40 hover:text-amber-300 transition-colors border-b border-amber-800/30"
+              >✕ Remove color</button>
               {COLORS.map(c => (
                 <button
                   key={c.hex}
-                  title={c.label}
                   onMouseDown={e => { e.preventDefault(); applyColor(c.hex) }}
-                  className="w-5 h-5 rounded-full border border-amber-900/60 hover:scale-110 transition-transform shrink-0"
-                  style={{ background: c.hex }}
-                />
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-amber-800/40 transition-colors"
+                  style={{ color: c.hex }}
+                >
+                  <span className="w-3 h-3 rounded-full shrink-0 border border-white/10" style={{ background: c.hex }} />
+                  {c.label}
+                </button>
               ))}
-              <button
-                onMouseDown={e => { e.preventDefault(); setColorOpen(false) }}
-                className="text-[9px] text-amber-700/60 hover:text-amber-400 w-full text-center mt-0.5"
-              >close</button>
             </div>
           )}
         </div>

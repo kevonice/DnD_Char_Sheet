@@ -154,7 +154,6 @@ function buildDecos(view: EditorView): DecorationSet {
 const SPAN_RE = /<span style="([^"]{1,120})">((?:[^<])*?)<\/span>/g
 
 function buildSpanDecos(view: EditorView): DecorationSet {
-  const sel  = view.state.selection.main
   const text = view.state.doc.toString()
   const collected: Array<{ from: number; to: number; deco: Decoration }> = []
 
@@ -166,8 +165,7 @@ function buildSpanDecos(view: EditorView): DecorationSet {
     const contentTo   = contentFrom + match[2].length
     const fullTo      = contentTo + '</span>'.length
 
-    if (sel.from <= fullTo && sel.to >= fullFrom) continue
-
+    // Always hide the HTML tags — never show raw markup in the editor
     collected.push({ from: fullFrom,    to: contentFrom, deco: Decoration.replace({}) })
     collected.push({ from: contentFrom, to: contentTo,   deco: Decoration.mark({ attributes: { style: styleAttr } }) })
     collected.push({ from: contentTo,   to: fullTo,      deco: Decoration.replace({}) })
