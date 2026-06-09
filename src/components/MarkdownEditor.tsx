@@ -147,29 +147,29 @@ function buildDecos(view: EditorView): DecorationSet {
   }
 }
 
-// ── Color span plugin ─────────────────────────────────────────────────────────
-// Detects <span style="color:HEX">text</span> and renders it with the color.
+// ── Inline span plugin (color + font-family) ──────────────────────────────────
+// Detects <span style="PROP:VALUE"> and renders the style inline,
+// hiding the HTML tags when cursor is outside the span.
 
-const COLOR_RE = /<span style="color:([^"]{1,30})">((?:[^<]|<(?!\/span>))*?)<\/span>/g
+const SPAN_RE = /<span style="([^"]{1,120})">((?:[^<])*?)<\/span>/g
 
-function buildColorDecos(view: EditorView): DecorationSet {
+function buildSpanDecos(view: EditorView): DecorationSet {
   const sel  = view.state.selection.main
   const text = view.state.doc.toString()
   const collected: Array<{ from: number; to: number; deco: Decoration }> = []
 
-  for (const match of text.matchAll(COLOR_RE)) {
-    const fullFrom   = match.index!
-    const color      = match[1]
-    const openTag    = `<span style="color:${color}">`
+  for (const match of text.matchAll(SPAN_RE)) {
+    const fullFrom    = match.index!
+    const styleAttr   = match[1]
+    const openTag     = `<span style="${styleAttr}">`
     const contentFrom = fullFrom + openTag.length
     const contentTo   = contentFrom + match[2].length
     const fullTo      = contentTo + '</span>'.length
 
-    // If cursor is anywhere inside this span, show raw HTML
     if (sel.from <= fullTo && sel.to >= fullFrom) continue
 
-    collected.push({ from: fullFrom,   to: contentFrom, deco: Decoration.replace({}) })
-    collected.push({ from: contentFrom, to: contentTo,   deco: Decoration.mark({ attributes: { style: `color:${color}` } }) })
+    collected.push({ from: fullFrom,    to: contentFrom, deco: Decoration.replace({}) })
+    collected.push({ from: contentFrom, to: contentTo,   deco: Decoration.mark({ attributes: { style: styleAttr } }) })
     collected.push({ from: contentTo,   to: fullTo,      deco: Decoration.replace({}) })
   }
 
@@ -181,11 +181,11 @@ function buildColorDecos(view: EditorView): DecorationSet {
   } catch { return Decoration.none }
 }
 
-const colorPlugin = ViewPlugin.fromClass(class {
+const spanPlugin = ViewPlugin.fromClass(class {
   decorations: DecorationSet
-  constructor(view: EditorView) { this.decorations = buildColorDecos(view) }
+  constructor(view: EditorView) { this.decorations = buildSpanDecos(view) }
   update(update: ViewUpdate) {
-    if (update.docChanged || update.selectionSet) this.decorations = buildColorDecos(update.view)
+    if (update.docChanged || update.selectionSet) this.decorations = buildSpanDecos(update.view)
   }
 }, { decorations: v => v.decorations })
 
@@ -294,7 +294,7 @@ export default function MarkdownEditor({ value, onChange, placeholder, className
     const extensions = [
       markdown(),
       obsidianPlugin,
-      colorPlugin,
+      spanPlugin,
       amberTheme,
       EditorView.lineWrapping,
       history(),

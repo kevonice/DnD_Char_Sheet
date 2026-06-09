@@ -218,6 +218,25 @@ function NoteEditor({
   const viewRef = useRef<EditorView | null>(null)
   const [preview, setPreview] = useState(false)
   const [colorOpen, setColorOpen] = useState(false)
+  const [fontOpen, setFontOpen] = useState(false)
+
+  const FONTS = [
+    { name: 'Arial',           label: 'Arial' },
+    { name: 'Helvetica',       label: 'Helvetica' },
+    { name: 'Verdana',         label: 'Verdana' },
+    { name: 'Trebuchet MS',    label: 'Trebuchet MS' },
+    { name: 'Century Gothic',  label: 'Century Gothic' },
+    { name: 'Georgia',         label: 'Georgia' },
+    { name: 'Garamond',        label: 'Garamond' },
+    { name: 'Palatino',        label: 'Palatino' },
+    { name: 'Baskerville',     label: 'Baskerville' },
+    { name: 'Times New Roman', label: 'Times New Roman' },
+    { name: 'Courier New',     label: 'Courier New' },
+    { name: 'Consolas',        label: 'Consolas' },
+    { name: 'Impact',          label: 'Impact' },
+    { name: 'Comic Sans MS',   label: 'Comic Sans' },
+    { name: 'Brush Script MT', label: 'Brush Script' },
+  ]
 
   const COLORS = [
     { hex: '#f87171', label: 'Red' },
@@ -234,6 +253,11 @@ function NoteEditor({
   function applyColor(hex: string) {
     setColorOpen(false)
     if (viewRef.current) applyAction(viewRef.current, { label: '', title: '', wrap: [`<span style="color:${hex}">`, '</span>'] })
+  }
+
+  function applyFont(name: string) {
+    setFontOpen(false)
+    if (viewRef.current) applyAction(viewRef.current, { label: '', title: '', wrap: [`<span style="font-family:${name}">`, '</span>'] })
   }
 
   return (
@@ -263,10 +287,31 @@ function NoteEditor({
         ))}
         <div className="flex-1" />
 
+        {/* Font picker */}
+        <div className="relative">
+          <button
+            onMouseDown={e => { e.preventDefault(); setFontOpen(o => !o); setColorOpen(false) }}
+            title="Font family"
+            className="px-1.5 py-0.5 text-[10px] rounded bg-amber-900/40 border border-amber-800/30 text-amber-400 hover:bg-amber-800/50 hover:text-amber-200 transition-colors font-serif"
+          >Aa</button>
+          {fontOpen && (
+            <div className="absolute right-0 top-7 z-50 bg-amber-950 border border-amber-800/40 rounded-lg py-1 w-44 shadow-xl max-h-64 overflow-y-auto">
+              {FONTS.map(f => (
+                <button
+                  key={f.name}
+                  onMouseDown={e => { e.preventDefault(); applyFont(f.name) }}
+                  className="w-full text-left px-3 py-1.5 text-sm text-amber-300/80 hover:bg-amber-800/40 hover:text-amber-100 transition-colors"
+                  style={{ fontFamily: f.name }}
+                >{f.label}</button>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Color picker */}
         <div className="relative">
           <button
-            onMouseDown={e => { e.preventDefault(); setColorOpen(o => !o) }}
+            onMouseDown={e => { e.preventDefault(); setColorOpen(o => !o); setFontOpen(false) }}
             title="Text color"
             className="px-1.5 py-0.5 text-[10px] rounded bg-amber-900/40 border border-amber-800/30 text-amber-400 hover:bg-amber-800/50 hover:text-amber-200 transition-colors"
           >
