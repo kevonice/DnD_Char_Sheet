@@ -601,7 +601,7 @@ export default function App() {
 
         {/* ════ CLASS TAB ════ */}
         {activeTab === 'class' && (
-          <ClassTab className={char.class} subclass={char.subclass} />
+          <ClassTab className={char.class} subclass={char.subclass} char={char} onChange={update} />
         )}
 
         {/* ════ NOTES TAB ════ */}

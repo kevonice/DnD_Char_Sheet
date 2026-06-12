@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { fetchClassProgression, type ClassProgressionData, type ClassFeatureDesc } from '../data/fiveEtoolsProgression'
+import { buildFeatureForCharacter, lookupFeatureMeta } from '../data/featureMetadata'
+import type { Character } from '../types'
 import EditionToggle from './EditionToggle'
 
 type ProgressionEdition = '2014' | '2024'
@@ -7,6 +9,8 @@ type ProgressionEdition = '2014' | '2024'
 interface Props {
   className: string
   subclass: string
+  char?: Character
+  onChange?: (updates: Partial<Character>) => void
 }
 
 const PROF_COLOR = [
@@ -33,16 +37,60 @@ const PROF_COLOR = [
   'text-amber-100',
 ]
 
-function FeatureDetail({ feature }: { feature: ClassFeatureDesc }) {
+function FeatureDetail({
+  feature, className, char, onChange,
+}: {
+  feature: ClassFeatureDesc
+  className: string
+  char?: Character
+  onChange?: (updates: Partial<Character>) => void
+}) {
+  const [added, setAdded] = useState(false)
+  const meta = lookupFeatureMeta(feature.name, className)
+  const alreadyOnSheet = !!char && (
+    char.activeFeatures.some(f => f.name === feature.name) ||
+    char.passiveTraits.some(t => t.name === feature.name)
+  )
+
+  function addToSheet() {
+    if (!char || !onChange) return
+    const built = buildFeatureForCharacter(feature.name, feature.description, char, className)
+    if (!built) return
+    if (built.active) onChange({ activeFeatures: [...char.activeFeatures, built.active] })
+    else if (built.passive) onChange({ passiveTraits: [...char.passiveTraits, built.passive] })
+    setAdded(true)
+  }
+
+  const canAdd = meta && char && onChange && !alreadyOnSheet && !added
+
   return (
-    <div className="mt-2 bg-amber-950/60 border border-amber-800/30 rounded-lg p-3 text-xs text-amber-200/70 max-h-48 overflow-y-auto whitespace-pre-wrap">
-      <div className="text-amber-300 font-semibold mb-1">{feature.name} <span className="text-amber-700/60 font-normal">· Level {feature.level}</span></div>
+    <div className="mt-2 bg-amber-950/60 border border-amber-800/30 rounded-lg p-3 text-xs text-amber-200/70 max-h-56 overflow-y-auto whitespace-pre-wrap">
+      <div className="flex items-start justify-between gap-3 mb-1">
+        <div className="text-amber-300 font-semibold">{feature.name} <span className="text-amber-700/60 font-normal">· Level {feature.level}</span></div>
+        {canAdd && (
+          <button
+            onClick={addToSheet}
+            title={meta!.kind === 'active' ? 'Add as a trackable active feature' : 'Add as a passive trait'}
+            className="shrink-0 px-2 py-0.5 rounded border border-amber-600/50 text-amber-300 hover:bg-amber-700/40 text-[10px] font-bold uppercase tracking-widest transition-colors"
+          >+ Add to sheet</button>
+        )}
+        {(added || alreadyOnSheet) && (
+          <span className="shrink-0 text-[10px] text-green-400/80 font-bold uppercase tracking-widest">✓ On sheet</span>
+        )}
+      </div>
+      {meta && char && (
+        <div className="text-[10px] text-amber-600/70 mb-1.5">
+          {meta.kind === 'active'
+            ? <>Active · {meta.actionType} · resets on {meta.recharge === 'atwill' ? 'at will' : `${meta.recharge} rest`}</>
+            : <>Passive trait</>}
+        </div>
+      )}
       {feature.description || <span className="text-amber-700/50 italic">No description available.</span>}
     </div>
   )
 }
 
-export default function ClassTab({ className, subclass }: Props) {
+export default function ClassTab({ className, subclass, char, onChange }: Props) {
   const [edition, setEdition] = useState<ProgressionEdition>('2014')
   const [data, setData] = useState<ClassProgressionData | null>(null)
   const [loading, setLoading] = useState(false)
@@ -144,7 +192,7 @@ export default function ClassTab({ className, subclass }: Props) {
       </div>
 
       {/* Feature detail panel */}
-      {selected && <FeatureDetail feature={selected} />}
+      {selected && <FeatureDetail feature={selected} className={className} char={char} onChange={onChange} />}
 
       {/* Progression table */}
       <div className="overflow-x-auto rounded-xl border border-amber-800/25">
