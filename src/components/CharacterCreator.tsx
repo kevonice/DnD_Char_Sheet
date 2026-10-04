@@ -1,13 +1,24 @@
-import { useState, useEffect } from 'react'
-import type { Character, AbilityKey, PassiveTrait } from '../types'
-import { v4 as uuid } from '../uuid'
+import { useCallback, useEffect, useState } from 'react'
+import type { Character } from '../types'
 import {
-  fetchCreatorRaces, fetchCreatorClasses,
-  SOURCE_LABELS, PRIMARY_SOURCES,
-  type CreatorRace, type CreatorClass,
-} from '../data/fiveEtoolsCreator'
-import { themeForClass } from '../data/classThemes'
-import { lookupItems } from '../data/fiveEtools'
+  emptyGrants, fetchBackgrounds2014, fetchClasses2014, fetchRaces2014, resolveRace,
+  type BackgroundOption,
+} from '../data/creator2014'
+import {
+  abilityChoicesComplete, addReplacementChoices, buildCharacter, finalizeCharacter,
+  proficiencyChoicesComplete, racialBonus, sanitizePicks,
+  type BuildInput, type Personality, type Picks,
+} from '../data/creatorBuild'
+import { CLASS_LEVEL1_TODO, CLASS_PITCH } from '../data/creatorPitches'
+import { FLOW, StepCard, WizardShell, type FlowStep } from './creator/ui'
+import { baseComplete, baseScores, finalScores, initialAbilityState, type AbilityState } from './creator/abilityMath'
+import RaceStep from './creator/RaceStep'
+import ClassStep from './creator/ClassStep'
+import BackgroundStep from './creator/BackgroundStep'
+import AbilityStep from './creator/AbilityStep'
+import ProficiencyStep from './creator/ProficiencyStep'
+import PersonalityStep from './creator/PersonalityStep'
+import ReviewStep from './creator/ReviewStep'
 
 interface Props {
   onComplete: (char: Partial<Character>) => void
@@ -15,309 +26,125 @@ interface Props {
   onImport:   (char: Partial<Character>) => void
 }
 
-type Step = 'landing' | 'name' | 'race' | 'class' | 'review'
+type Mode = 'list' | 'custom'
 
-const ABILITY_LABELS: Record<string, string> = {
-  str: 'Strength', dex: 'Dexterity', con: 'Constitution',
-  int: 'Intelligence', wis: 'Wisdom', cha: 'Charisma',
+function useLoader<T>(fetcher: () => Promise<T[]>, active: boolean) {
+  const [data, setData] = useState<T[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const load = useCallback(() => {
+    setLoading(true)
+    setError(null)
+    fetcher()
+      .then(setData)
+      .catch(e => setError(String(e?.message ?? e)))
+      .finally(() => setLoading(false))
+  }, [fetcher])
+  useEffect(() => {
+    if (active && data.length === 0 && !loading && !error) load()
+  }, [active, data.length, loading, error, load])
+  return { data, loading, error, retry: load }
 }
 
-// ---------------------------------------------------------------------------
-// Small shared UI pieces
-// ---------------------------------------------------------------------------
-
-function StepDot({ active, done }: { active: boolean; done: boolean }) {
-  return (
-    <div className={`w-2 h-2 rounded-full transition-colors ${
-      done ? 'bg-amber-500' : active ? 'bg-amber-400 ring-2 ring-amber-400/40' : 'bg-amber-900'
-    }`} />
-  )
+/** Personality entries that came from the old background's tables no longer fit a new one. */
+function clearTableEntries(p: Personality, old: BackgroundOption | null): Personality {
+  if (!old) return p
+  const t = old.tables
+  const keep = (v: string, opts: string[]) => v.split('\n').filter(l => l && !opts.includes(l)).join('\n')
+  return { traits: keep(p.traits, t.traits), ideal: keep(p.ideal, t.ideals), bond: keep(p.bond, t.bonds), flaw: keep(p.flaw, t.flaws) }
 }
-
-function WizardShell({ step, children }: { step: Step; children: React.ReactNode }) {
-  const steps: Step[] = ['name', 'race', 'class', 'review']
-  const idx = steps.indexOf(step)
-  return (
-    <div className="min-h-screen bg-[#130e06] flex flex-col items-center justify-center p-6">
-      <div className="w-full max-w-xl">
-        {step !== 'landing' && (
-          <div className="flex items-center justify-center gap-3 mb-8">
-            {steps.map((s, i) => (
-              <div key={s} className="flex items-center gap-3">
-                <StepDot active={i === idx} done={i < idx} />
-                {i < steps.length - 1 && (
-                  <div className={`w-8 h-px ${i < idx ? 'bg-amber-600/60' : 'bg-amber-900/60'}`} />
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-        {children}
-      </div>
-    </div>
-  )
-}
-
-function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return (
-    <div className={`bg-amber-950/40 border border-amber-800/30 rounded-2xl p-6 ${className}`}>
-      {children}
-    </div>
-  )
-}
-
-function Label({ text }: { text: string }) {
-  return <span className="text-[9px] uppercase tracking-widest text-amber-600/70 block mb-1">{text}</span>
-}
-
-// ---------------------------------------------------------------------------
-// Source picker sub-component
-// ---------------------------------------------------------------------------
-
-function SourcePicker({ selected, onChange }: {
-  selected: string; onChange: (s: string) => void
-}) {
-  const [showAll, setShowAll] = useState(false)
-  const allSources = Object.entries(SOURCE_LABELS)
-  const shown = showAll ? allSources : allSources.filter(([k]) => PRIMARY_SOURCES.includes(k))
-
-  return (
-    <div className="space-y-1.5">
-      <div className="flex flex-wrap gap-1.5">
-        <button
-          onClick={() => onChange('any')}
-          title="Show races from all sources"
-          className={`px-2.5 py-1 rounded-full border text-xs font-bold transition-colors ${
-            selected === 'any'
-              ? 'bg-amber-600/20 border-amber-500/70 text-amber-200'
-              : 'border-amber-800/30 text-amber-500/50 hover:border-amber-700/50 hover:text-amber-300'
-          }`}
-        >
-          Any
-        </button>
-        {shown.map(([code, label]) => (
-          <button
-            key={code}
-            onClick={() => onChange(code)}
-            title={label}
-            className={`px-2.5 py-1 rounded-full border text-xs font-bold transition-colors ${
-              selected === code
-                ? 'bg-amber-600/20 border-amber-500/70 text-amber-200'
-                : 'border-amber-800/30 text-amber-500/50 hover:border-amber-700/50 hover:text-amber-300'
-            }`}
-          >
-            {code}
-          </button>
-        ))}
-      </div>
-      <button
-        onClick={() => setShowAll(v => !v)}
-        className="text-[10px] text-amber-700/50 hover:text-amber-500 underline decoration-dotted"
-      >
-        {showAll ? 'Show fewer sources' : 'Show all sources…'}
-      </button>
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Race picker sub-component
-// ---------------------------------------------------------------------------
-
-function RacePicker({ races, loading, source, selected, onSelect }: {
-  races: CreatorRace[]
-  loading: boolean
-  source: string
-  selected: CreatorRace | null
-  onSelect: (r: CreatorRace) => void
-}) {
-  const [query, setQuery] = useState('')
-  const filtered = races
-    .filter(r => source === 'any' || r.source === source)
-    .filter(r => !query || r.name.toLowerCase().includes(query.toLowerCase()))
-
-  return (
-    <div className="space-y-2">
-      <input
-        value={query}
-        onChange={e => setQuery(e.target.value)}
-        placeholder={loading ? 'Loading races…' : `Search races from ${source === 'any' ? 'all sources' : source}…`}
-        disabled={loading}
-        className="w-full bg-amber-950/50 border border-amber-800/40 rounded-lg px-3 py-2 text-sm text-amber-100 placeholder-amber-700/50 focus:border-amber-600 transition-colors disabled:opacity-50"
-      />
-      <div className="max-h-52 overflow-y-auto space-y-1 pr-1">
-        {filtered.map(r => (
-          <button
-            key={r.name + r.source}
-            onClick={() => onSelect(r)}
-            className={`w-full text-left px-3 py-2 rounded-lg border text-xs transition-colors ${
-              selected?.name === r.name && selected?.source === r.source
-                ? 'bg-amber-600/20 border-amber-500/70 text-amber-100'
-                : 'border-amber-800/25 text-amber-300/70 hover:border-amber-700/50 hover:text-amber-200'
-            }`}
-          >
-            <span className="font-semibold">{r.name}</span>
-            <span className="ml-2 text-amber-600/50">{r.source}</span>
-            {r.darkvision && <span className="ml-2 text-indigo-400/50">Darkvision {r.darkvision}ft</span>}
-            {r.resistances.length > 0 && (
-              <span className="ml-2 text-green-400/50">Res: {r.resistances.join(', ')}</span>
-            )}
-          </button>
-        ))}
-        {!loading && filtered.length === 0 && (
-          <p className="text-amber-700/50 text-xs text-center py-4">No races found for this source.</p>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Class picker sub-component
-// ---------------------------------------------------------------------------
-
-function ClassPicker({ classes, loading, selected, onSelect }: {
-  classes: CreatorClass[]
-  loading: boolean
-  selected: CreatorClass | null
-  onSelect: (c: CreatorClass) => void
-}) {
-  return (
-    <div className="grid grid-cols-2 gap-2">
-      {loading ? (
-        <p className="col-span-2 text-amber-700/50 text-xs text-center py-4 animate-pulse">Loading classes…</p>
-      ) : (
-        classes.map(c => {
-          const glyph = themeForClass(c.name).glyph
-          return (
-            <button
-              key={c.name}
-              onClick={() => onSelect(c)}
-              className={`text-left px-3 py-2.5 rounded-lg border text-xs transition-colors ${
-                selected?.name === c.name
-                  ? 'bg-amber-600/20 border-amber-500/70 text-amber-100'
-                  : 'border-amber-800/25 text-amber-300/70 hover:border-amber-700/50 hover:text-amber-200'
-              }`}
-            >
-              <div className="font-semibold text-sm flex items-center gap-1.5">
-                <span>{glyph}</span>
-                {c.name}
-              </div>
-              <div className="text-amber-600/50 mt-0.5">d{c.hitDie} · {c.savingThrows.map(s => s.toUpperCase()).join('/')}</div>
-              {c.spellcastingAbility && (
-                <div className="text-purple-400/50 mt-0.5">
-                  Spellcasting ({ABILITY_LABELS[c.spellcastingAbility]?.slice(0,3) ?? c.spellcastingAbility})
-                </div>
-              )}
-            </button>
-          )
-        })
-      )}
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Main wizard
-// ---------------------------------------------------------------------------
 
 export default function CharacterCreator({ onComplete, onManual, onImport }: Props) {
-  const [step, setStep]         = useState<Step>('landing')
-  const [charName, setCharName] = useState('')
+  const [step, setStep] = useState<FlowStep | 'landing'>('landing')
+  const [maxReached, setMaxReached] = useState(0)
+  const [name, setName] = useState('')
 
-  const [races, setRaces]           = useState<CreatorRace[]>([])
-  const [racesLoading, setRacesLoading] = useState(false)
-  const [raceSource, setRaceSource] = useState('PHB')
-  const [selectedRace, setSelectedRace] = useState<CreatorRace | null>(null)
+  const [raceMode, setRaceMode] = useState<Mode>('list')
+  const [raceName, setRaceName] = useState<string | null>(null)
+  const [subShort, setSubShort] = useState<string | null>(null)
   const [customRace, setCustomRace] = useState('')
 
-  const [classes, setClasses]         = useState<CreatorClass[]>([])
-  const [classesLoading, setClassesLoading] = useState(false)
-  const [selectedClass, setSelectedClass] = useState<CreatorClass | null>(null)
+  const [classMode, setClassMode] = useState<Mode>('list')
+  const [className, setClassName] = useState<string | null>(null)
   const [customClass, setCustomClass] = useState('')
+  const [customHitDie, setCustomHitDie] = useState(8)
 
-  const [raceTab, setRaceTab]   = useState<'search' | 'custom'>('search')
-  const [classTab, setClassTab] = useState<'search' | 'custom'>('search')
+  const [bgMode, setBgMode] = useState<Mode>('list')
+  const [bgName, setBgName] = useState<string | null>(null)
+  const [customBg, setCustomBg] = useState('')
+
+  const [ability, setAbility] = useState<AbilityState>(initialAbilityState)
+  const [picks, setPicks] = useState<Picks>({})
+  const [personality, setPersonality] = useState<Personality>({ traits: '', ideal: '', bond: '', flaw: '' })
+  const [alignment, setAlignment] = useState('')
   const [creating, setCreating] = useState(false)
 
-  // Prefetch race + class data as soon as wizard opens
-  useEffect(() => {
-    if (step === 'landing') return
-    if (!races.length && !racesLoading) {
-      setRacesLoading(true)
-      fetchCreatorRaces()
-        .then(setRaces)
-        .finally(() => setRacesLoading(false))
-    }
-    if (!classes.length && !classesLoading) {
-      setClassesLoading(true)
-      fetchCreatorClasses()
-        .then(setClasses)
-        .finally(() => setClassesLoading(false))
-    }
-  }, [step])
+  const active = step !== 'landing'
+  const races = useLoader(fetchRaces2014, active)
+  const classes = useLoader(fetchClasses2014, active)
+  const backgrounds = useLoader(fetchBackgrounds2014, active)
 
-  function buildCharacter(): Partial<Character> {
-    const raceName  = raceTab  === 'custom' ? customRace  : (selectedRace?.name  ?? '')
-    const className = classTab === 'custom' ? customClass : (selectedClass?.name ?? '')
+  // ── Derived selections ────────────────────────────────────────────────────
+  const race = raceMode === 'list' ? races.data.find(r => r.name === raceName) ?? null : null
+  const sub = race?.subraces.find(s => s.short === subShort) ?? null
+  const resolvedRace = race && (race.subraces.length === 0 || sub) ? resolveRace(race, sub) : null
+  const cls = classMode === 'list' ? classes.data.find(c => c.name === className) ?? null : null
+  const bg = bgMode === 'list' ? backgrounds.data.find(b => b.name === bgName) ?? null : null
 
-    // Build passive traits from race
-    const passiveTraits: PassiveTrait[] = []
-    if (selectedRace && raceTab === 'search') {
-      const summaryParts: string[] = []
-      if (selectedRace.size.length) summaryParts.push(`Size: ${selectedRace.size.join(' or ')}`)
-      if (selectedRace.darkvision) summaryParts.push(`Darkvision: ${selectedRace.darkvision} ft`)
-      if (selectedRace.resistances.length) summaryParts.push(`Damage Resistances: ${selectedRace.resistances.join(', ')}`)
-      if (summaryParts.length) {
-        passiveTraits.push({ id: uuid(), name: `${selectedRace.name} — Racial Traits`, description: summaryParts.join('\n') })
-      }
-      if (selectedRace.traits) {
-        passiveTraits.push({ id: uuid(), name: `${selectedRace.name} — Traits`, description: selectedRace.traits })
-      }
-    }
+  const raceLabel = resolvedRace?.label ?? (raceMode === 'custom' ? customRace.trim() : '')
+  const classLabel = cls?.name ?? (classMode === 'custom' ? customClass.trim() : '')
+  const bgLabel = bg?.name ?? (bgMode === 'custom' ? customBg.trim() : '')
 
-    // Build proficiency string from class
-    const profParts: string[] = []
-    if (selectedClass && classTab === 'search') {
-      if (selectedClass.armorProfs.length)  profParts.push(`Armor: ${selectedClass.armorProfs.join(', ')}`)
-      if (selectedClass.weaponProfs.length) profParts.push(`Weapons: ${selectedClass.weaponProfs.join(', ')}`)
-      if (selectedClass.savingThrows.length)
-        profParts.push(`Saving Throws: ${selectedClass.savingThrows.map(s => s.toUpperCase()).join(', ')}`)
-    }
+  const raceGrants = resolvedRace?.grants ?? emptyGrants('race', raceLabel || 'Custom race')
+  const groups = addReplacementChoices([
+    raceGrants,
+    bg?.grants ?? emptyGrants('background', bgLabel || 'Custom background'),
+    cls?.grants ?? emptyGrants('class', classLabel || 'Custom class'),
+  ])
+  const cleanPicks = sanitizePicks(groups, picks)
+  const setPick = (id: string, values: string[]) => setPicks({ ...cleanPicks, [id]: values })
+  const clearPicks = (prefix: string) =>
+    setPicks(p => Object.fromEntries(Object.entries(p).filter(([k]) => !k.startsWith(prefix))))
 
-    const updates: Partial<Character> = {
-      name:  charName,
-      race:  raceName,
-      class: className,
-    }
+  const abilities = finalScores(baseScores(ability), racialBonus(raceGrants, cleanPicks))
 
-    if (selectedRace && raceTab === 'search') {
-      updates.speed = selectedRace.speed
-    }
-    if (selectedClass && classTab === 'search') {
-      updates.hitDice = `1d${selectedClass.hitDie}`
-      if (selectedClass.spellcastingAbility) {
-        updates.spellcastingAbility = selectedClass.spellcastingAbility as AbilityKey
-      }
-      // Tick saving throw proficiencies
-      const savingThrows: Record<string, boolean> = {}
-      for (const key of selectedClass.savingThrows) savingThrows[key] = true
-      if (Object.keys(savingThrows).length) updates.savingThrows = savingThrows as any
-      // Starting equipment → inventory
-      if (selectedClass.startingEquipment.length) {
-        updates.inventory = selectedClass.startingEquipment
-      }
-    }
-    if (passiveTraits.length) updates.passiveTraits = passiveTraits
-    if (profParts.length)     updates.proficiencies = profParts.join('\n')
-
-    return updates
+  const complete: Record<FlowStep, boolean> = {
+    name: true,
+    race: raceMode === 'custom' ? !!customRace.trim() : !!resolvedRace,
+    class: classMode === 'custom' ? !!customClass.trim() : !!cls,
+    background: bgMode === 'custom' ? !!customBg.trim() : !!bg,
+    abilities: baseComplete(ability) && abilityChoicesComplete(raceGrants, cleanPicks),
+    proficiencies: proficiencyChoicesComplete(groups, cleanPicks),
+    personality: true,
+    review: true,
   }
 
-  const raceSummary  = raceTab  === 'custom' ? customRace  : selectedRace?.name  ?? ''
-  const classSummary = classTab === 'custom' ? customClass : selectedClass?.name ?? ''
+  const canReach = (s: FlowStep) => {
+    const i = FLOW.indexOf(s)
+    return i <= maxReached && FLOW.slice(0, i).every(x => complete[x])
+  }
+  function go(s: FlowStep) {
+    setStep(s)
+    setMaxReached(m => Math.max(m, FLOW.indexOf(s)))
+    window.scrollTo({ top: 0 })
+  }
 
-  // ── Landing ──────────────────────────────────────────────────────────────
+  const buildInput = (): BuildInput => ({
+    name: name.trim(), raceLabel, race: resolvedRace, className: classLabel, cls,
+    hitDie: cls?.hitDie ?? customHitDie, backgroundName: bgLabel, background: bg,
+    groups, picks: cleanPicks, abilities, personality, alignment,
+  })
+
+  async function create() {
+    setCreating(true)
+    try {
+      onComplete(await finalizeCharacter(buildCharacter(buildInput()), cls?.name ?? null))
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  // ── Landing ───────────────────────────────────────────────────────────────
   if (step === 'landing') {
     function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
       const file = e.target.files?.[0]
@@ -325,8 +152,7 @@ export default function CharacterCreator({ onComplete, onManual, onImport }: Pro
       const reader = new FileReader()
       reader.onload = ev => {
         try {
-          const parsed = JSON.parse(ev.target?.result as string)
-          onImport(parsed)
+          onImport(JSON.parse(ev.target?.result as string))
         } catch {
           alert('Could not read that file — make sure it\'s a valid character JSON.')
         }
@@ -339,275 +165,180 @@ export default function CharacterCreator({ onComplete, onManual, onImport }: Pro
       <WizardShell step="landing">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-amber-100 mb-2">⚔ Character Sheet</h1>
-          <p className="text-amber-600/60 text-sm">How would you like to begin?</p>
+          <p className="text-amber-600/70 text-sm">How would you like to begin?</p>
         </div>
         <div className="grid grid-cols-1 gap-4">
-          {/* Returning player — most prominent */}
           <label className="group bg-amber-900/40 border-2 border-amber-600/50 hover:border-amber-500/80 rounded-2xl p-6 text-left transition-all hover:bg-amber-800/30 cursor-pointer">
             <input type="file" accept=".json" className="hidden" onChange={handleImportFile} />
-            <div className="text-lg font-bold text-amber-200 mb-1 group-hover:text-amber-100">
-              ↑ Load existing character
-            </div>
-            <p className="text-amber-500/70 text-sm">
-              Already have a character? Import your saved JSON file to pick up where you left off.
-            </p>
+            <div className="text-lg font-bold text-amber-200 mb-1 group-hover:text-amber-100">↑ Load existing character</div>
+            <p className="text-amber-500/70 text-sm">Already have a character? Import your saved JSON file to pick up where you left off.</p>
           </label>
-
           <button
-            onClick={() => setStep('name')}
+            onClick={() => go('name')}
             className="group bg-amber-950/50 border border-amber-700/40 hover:border-amber-500/70 rounded-2xl p-6 text-left transition-all hover:bg-amber-900/30"
           >
-            <div className="text-lg font-bold text-amber-300 mb-1 group-hover:text-amber-100">
-              ✦ Create new character
-            </div>
-            <p className="text-amber-600/60 text-sm">
-              Choose your race and class from 5e sourcebooks. Traits, hit dice, and proficiencies
-              are filled in automatically. You can still customise everything afterwards.
+            <div className="text-lg font-bold text-amber-300 mb-1 group-hover:text-amber-100">✦ Create new character</div>
+            <p className="text-amber-600/70 text-sm">
+              A step-by-step guide through race, class, background, ability scores and skills, with
+              explanations along the way. Uses the 2014 Player's Handbook. Great for new players.
             </p>
           </button>
-
           <button
             onClick={onManual}
             className="group bg-amber-950/30 border border-amber-800/25 hover:border-amber-700/40 rounded-2xl p-6 text-left transition-all"
           >
-            <div className="text-lg font-bold text-amber-400/70 mb-1 group-hover:text-amber-300">
-              ✎ Blank sheet
-            </div>
-            <p className="text-amber-700/50 text-sm">
-              Start empty and fill everything in yourself.
-            </p>
+            <div className="text-lg font-bold text-amber-400/70 mb-1 group-hover:text-amber-300">✎ Blank sheet</div>
+            <p className="text-amber-700/60 text-sm">Start empty and fill everything in yourself.</p>
           </button>
         </div>
       </WizardShell>
     )
   }
 
-  // ── Step: Name ───────────────────────────────────────────────────────────
-  if (step === 'name') {
-    return (
-      <WizardShell step="name">
-        <Card>
-          <h2 className="text-xl font-bold text-amber-100 mb-1">What is your character's name?</h2>
-          <p className="text-amber-600/50 text-xs mb-5">You can change this at any time on the sheet.</p>
-          <input
-            autoFocus
-            value={charName}
-            onChange={e => setCharName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && setStep('race')}
-            placeholder="e.g. Lyria Ashveil"
-            className="w-full bg-amber-950/50 border border-amber-800/40 rounded-lg px-4 py-3 text-lg text-amber-100 placeholder-amber-800/40 focus:border-amber-500 transition-colors focus:outline-none mb-6"
-          />
-          <div className="flex justify-between">
-            <button onClick={() => setStep('landing')} className="text-amber-700/50 hover:text-amber-500 text-sm">← Back</button>
-            <button
-              onClick={() => setStep('race')}
-              className="px-5 py-2 bg-amber-700/60 hover:bg-amber-600/70 text-amber-100 rounded-lg text-sm font-bold transition-colors"
-            >
-              Next →
-            </button>
-          </div>
-        </Card>
-      </WizardShell>
-    )
+  // ── Wizard steps ──────────────────────────────────────────────────────────
+  const idx = FLOW.indexOf(step)
+  const next = () => go(FLOW[idx + 1])
+  const back = () => (idx === 0 ? setStep('landing') : go(FLOW[idx - 1]))
+
+  let body: React.ReactNode
+  let title = ''
+  let subtitle: React.ReactNode = null
+  let hint = ''
+
+  switch (step) {
+    case 'name':
+      title = "What is your character's name?"
+      subtitle = 'You can change this any time on the sheet.'
+      body = (
+        <input
+          autoFocus
+          value={name}
+          onChange={e => setName(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && next()}
+          placeholder="e.g. Lyria Ashveil"
+          className="w-full bg-amber-950/50 border border-amber-800/40 rounded-lg px-4 py-3 text-lg text-amber-100 placeholder-amber-800/50 focus:border-amber-500 focus:outline-none"
+        />
+      )
+      break
+
+    case 'race':
+      title = 'Choose a race'
+      subtitle = 'Your race shapes your ability scores, senses and a few special traits. Click one to read about it.'
+      hint = raceMode === 'custom' ? 'Type a race name' : !race ? 'Pick a race' : `Pick a ${race.subraceLabel === 'Subrace' ? 'subrace' : 'draconic ancestry'}`
+      body = (
+        <RaceStep
+          races={races.data} loading={races.loading} error={races.error} onRetry={races.retry}
+          mode={raceMode} onMode={m => { setRaceMode(m); clearPicks('race:') }}
+          raceName={raceName} subShort={subShort}
+          onPick={n => { if (n !== raceName) { setRaceName(n); setSubShort(null); clearPicks('race:') } }}
+          onPickSub={s => { setSubShort(s); clearPicks('race:') }}
+          customRace={customRace} onCustomRace={setCustomRace}
+        />
+      )
+      break
+
+    case 'class':
+      title = 'Choose a class'
+      subtitle = 'Your class is what your character does on an adventure: the biggest choice you will make. Click one to read about it.'
+      hint = classMode === 'custom' ? 'Type a class name' : 'Pick a class'
+      body = (
+        <ClassStep
+          classes={classes.data} loading={classes.loading} error={classes.error} onRetry={classes.retry}
+          mode={classMode} onMode={m => { setClassMode(m); clearPicks('class:') }}
+          className={className}
+          onPick={n => { if (n !== className) { setClassName(n); clearPicks('class:') } }}
+          customClass={customClass} onCustomClass={setCustomClass}
+          customHitDie={customHitDie} onCustomHitDie={setCustomHitDie}
+        />
+      )
+      break
+
+    case 'background':
+      title = 'Choose a background'
+      subtitle = 'What your character did before adventuring. It gives skills, tools or languages, some gear and a special feature.'
+      hint = bgMode === 'custom' ? 'Type a background name' : 'Pick a background'
+      body = (
+        <BackgroundStep
+          backgrounds={backgrounds.data} loading={backgrounds.loading} error={backgrounds.error} onRetry={backgrounds.retry}
+          mode={bgMode} onMode={m => { setBgMode(m); clearPicks('background:') }}
+          backgroundName={bgName}
+          onPick={n => {
+            if (n === bgName) return
+            setPersonality(p => clearTableEntries(p, bg))
+            setBgName(n)
+            clearPicks('background:')
+          }}
+          customBackground={customBg} onCustomBackground={setCustomBg}
+        />
+      )
+      break
+
+    case 'abilities':
+      title = 'Set your ability scores'
+      subtitle = cls
+        ? <>Six numbers that describe what your character is good at. <span className="text-amber-400">★</span> marks what matters most for a {cls.name} ({CLASS_PITCH[cls.name]?.keyAbilities}).</>
+        : 'Six numbers that describe what your character is good at.'
+      hint = !baseComplete(ability)
+        ? (ability.method === 'pointbuy' ? 'You have spent more than 27 points' : 'Assign all six scores')
+        : 'Choose your racial bonuses'
+      body = (
+        <AbilityStep
+          state={ability} onChange={setAbility}
+          race={raceGrants} picks={cleanPicks} onPick={setPick}
+          className={cls?.name ?? null}
+        />
+      )
+      break
+
+    case 'proficiencies':
+      title = 'Skills, languages & tools'
+      subtitle = 'Everything your race, background and class give you. 🔒 chips are automatic; highlighted boxes need a choice from you.'
+      hint = 'Finish the highlighted choices'
+      body = <ProficiencyStep groups={groups} picks={cleanPicks} onPick={setPick} />
+      break
+
+    case 'personality':
+      title = 'Personality'
+      subtitle = 'Optional, but it brings your character to life. Pick from your background’s suggestions, roll, or write your own.'
+      body = (
+        <PersonalityStep
+          background={bg} personality={personality} onPersonality={setPersonality}
+          alignment={alignment} onAlignment={setAlignment}
+        />
+      )
+      break
+
+    case 'review': {
+      const preview = buildCharacter(buildInput())
+      const todo = [
+        ...(cls ? CLASS_LEVEL1_TODO[cls.name] ?? [] : []),
+        ...(resolvedRace?.traits.some(t => t.name === 'Feat') ? ['Choose one feat (Variant Human).'] : []),
+        ...(resolvedRace?.traits.some(t => t.name === 'Cantrip') ? ['Pick one wizard cantrip (High Elf) in the Spells tab.'] : []),
+        ...(preview.inventory ?? [])
+          .filter(i => i.name.endsWith('(your choice)'))
+          .map(i => `Pick a specific ${i.name.replace(' (your choice)', '').toLowerCase()} for your equipment.`),
+      ]
+      title = 'Ready to begin?'
+      subtitle = 'Everything can still be edited on the sheet afterwards.'
+      body = <ReviewStep preview={preview} groups={groups} picks={cleanPicks} todo={todo} />
+      break
+    }
   }
 
-  // ── Step: Race ───────────────────────────────────────────────────────────
-  if (step === 'race') {
-    const canContinue = raceTab === 'custom' ? customRace.trim().length > 0 : selectedRace !== null
-    return (
-      <WizardShell step="race">
-        <Card>
-          <h2 className="text-xl font-bold text-amber-100 mb-1">Choose a Race</h2>
-          <p className="text-amber-600/50 text-xs mb-4">
-            {charName ? `Who is ${charName}?` : 'Select your character\'s race.'}
-          </p>
-
-          {/* Tab toggle */}
-          <div className="flex gap-1 mb-4 bg-amber-950/60 rounded-lg p-1">
-            {(['search', 'custom'] as const).map(t => (
-              <button
-                key={t}
-                onClick={() => setRaceTab(t)}
-                className={`flex-1 py-1.5 rounded-md text-xs font-bold transition-colors ${
-                  raceTab === t ? 'bg-amber-700/50 text-amber-100' : 'text-amber-600/50 hover:text-amber-400'
-                }`}
-              >
-                {t === 'search' ? '5e.tools Search' : 'Custom / Homebrew'}
-              </button>
-            ))}
-          </div>
-
-          {raceTab === 'search' ? (
-            <div className="space-y-3">
-              <div>
-                <Label text="Sourcebook" />
-                <SourcePicker selected={raceSource} onChange={setRaceSource} />
-              </div>
-              <div>
-                <Label text="Race" />
-                <RacePicker
-                  races={races} loading={racesLoading}
-                  source={raceSource}
-                  selected={selectedRace}
-                  onSelect={setSelectedRace}
-                />
-              </div>
-              {selectedRace && (
-                <div className="bg-amber-950/60 border border-amber-800/20 rounded-lg p-3 text-xs text-amber-300/70 max-h-32 overflow-y-auto">
-                  <div className="font-bold text-amber-200 mb-1">{selectedRace.name} traits</div>
-                  {selectedRace.darkvision && <div>• Darkvision {selectedRace.darkvision} ft</div>}
-                  {selectedRace.resistances.length > 0 && <div>• Resistances: {selectedRace.resistances.join(', ')}</div>}
-                  {selectedRace.abilityBonuses && (
-                    <div>• Ability bonuses: {Object.entries(selectedRace.abilityBonuses).map(([k,v]) => `+${v} ${ABILITY_LABELS[k] ?? k}`).join(', ')}</div>
-                  )}
-                  {!selectedRace.abilityBonuses && <div>• Free +2/+1 ability score increases (choose after)</div>}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div>
-              <Label text="Race name" />
-              <input
-                autoFocus
-                value={customRace}
-                onChange={e => setCustomRace(e.target.value)}
-                placeholder="e.g. Half-Dragon, Kenku, Changeling…"
-                className="w-full bg-amber-950/50 border border-amber-800/40 rounded-lg px-3 py-2 text-sm text-amber-100 placeholder-amber-700/40 focus:border-amber-600 transition-colors focus:outline-none"
-              />
-              <p className="text-[10px] text-amber-700/40 mt-1.5">You can fill in traits manually in the Features & Traits field on the sheet.</p>
-            </div>
-          )}
-
-          <div className="flex justify-between mt-6">
-            <button onClick={() => setStep('name')} className="text-amber-700/50 hover:text-amber-500 text-sm">← Back</button>
-            <button
-              onClick={() => setStep('class')}
-              disabled={!canContinue}
-              className="px-5 py-2 bg-amber-700/60 hover:bg-amber-600/70 disabled:opacity-30 disabled:cursor-not-allowed text-amber-100 rounded-lg text-sm font-bold transition-colors"
-            >
-              Next →
-            </button>
-          </div>
-        </Card>
-      </WizardShell>
-    )
-  }
-
-  // ── Step: Class ──────────────────────────────────────────────────────────
-  if (step === 'class') {
-    const canContinue = classTab === 'custom' ? customClass.trim().length > 0 : selectedClass !== null
-    return (
-      <WizardShell step="class">
-        <Card>
-          <h2 className="text-xl font-bold text-amber-100 mb-1">Choose a Class</h2>
-          <p className="text-amber-600/50 text-xs mb-4">What path does your character walk?</p>
-
-          <div className="flex gap-1 mb-4 bg-amber-950/60 rounded-lg p-1">
-            {(['search', 'custom'] as const).map(t => (
-              <button
-                key={t}
-                onClick={() => setClassTab(t)}
-                className={`flex-1 py-1.5 rounded-md text-xs font-bold transition-colors ${
-                  classTab === t ? 'bg-amber-700/50 text-amber-100' : 'text-amber-600/50 hover:text-amber-400'
-                }`}
-              >
-                {t === 'search' ? '5e.tools Search' : 'Custom / Homebrew'}
-              </button>
-            ))}
-          </div>
-
-          {classTab === 'search' ? (
-            <ClassPicker
-              classes={classes} loading={classesLoading}
-              selected={selectedClass}
-              onSelect={setSelectedClass}
-            />
-          ) : (
-            <div>
-              <Label text="Class name" />
-              <input
-                autoFocus
-                value={customClass}
-                onChange={e => setCustomClass(e.target.value)}
-                placeholder="e.g. Blood Hunter, Artificer variant…"
-                className="w-full bg-amber-950/50 border border-amber-800/40 rounded-lg px-3 py-2 text-sm text-amber-100 placeholder-amber-700/40 focus:border-amber-600 transition-colors focus:outline-none"
-              />
-            </div>
-          )}
-
-          <div className="flex justify-between mt-6">
-            <button onClick={() => setStep('race')} className="text-amber-700/50 hover:text-amber-500 text-sm">← Back</button>
-            <button
-              onClick={() => setStep('review')}
-              disabled={!canContinue}
-              className="px-5 py-2 bg-amber-700/60 hover:bg-amber-600/70 disabled:opacity-30 disabled:cursor-not-allowed text-amber-100 rounded-lg text-sm font-bold transition-colors"
-            >
-              Review →
-            </button>
-          </div>
-        </Card>
-      </WizardShell>
-    )
-  }
-
-  // ── Step: Review ─────────────────────────────────────────────────────────
-  const preview = buildCharacter()
+  const isReview = step === 'review'
   return (
-    <WizardShell step="review">
-      <Card>
-        <h2 className="text-xl font-bold text-amber-100 mb-1">Ready to begin?</h2>
-        <p className="text-amber-600/50 text-xs mb-5">Everything can be edited on the sheet afterwards.</p>
-
-        <div className="space-y-2 mb-6">
-          {[
-            { label: 'Name',  value: charName || '(unnamed)' },
-            { label: 'Race',  value: raceSummary  || '—' },
-            { label: 'Class', value: classSummary || '—' },
-            selectedClass && classTab === 'search'
-              ? { label: 'Hit Die', value: `d${selectedClass.hitDie}` } : null,
-            selectedClass?.spellcastingAbility && classTab === 'search'
-              ? { label: 'Spellcasting', value: ABILITY_LABELS[selectedClass.spellcastingAbility] ?? selectedClass.spellcastingAbility } : null,
-            selectedRace && raceTab === 'search'
-              ? { label: 'Speed', value: `${selectedRace.speed} ft` } : null,
-            selectedRace?.darkvision && raceTab === 'search'
-              ? { label: 'Darkvision', value: `${selectedRace.darkvision} ft` } : null,
-          ].filter(Boolean).map(row => row && (
-            <div key={row.label} className="flex justify-between text-sm border-b border-amber-900/40 pb-1.5">
-              <span className="text-amber-600/60 text-xs uppercase tracking-widest">{row.label}</span>
-              <span className="text-amber-200">{row.value}</span>
-            </div>
-          ))}
-        </div>
-
-        {selectedRace && raceTab === 'search' && selectedRace.traits && (
-          <div className="bg-amber-950/60 border border-amber-800/20 rounded-lg p-3 mb-5 max-h-28 overflow-y-auto">
-            <div className="text-[9px] uppercase tracking-widest text-amber-600/60 mb-1">Race traits → Features & Traits</div>
-            <p className="text-xs text-amber-300/60 whitespace-pre-wrap">{preview.passiveTraits?.map(t => `• ${t.name}`).join('\n')}</p>
-          </div>
-        )}
-
-        <div className="flex justify-between">
-          <button onClick={() => setStep('class')} className="text-amber-700/50 hover:text-amber-500 text-sm">← Back</button>
-          <button
-            disabled={creating}
-            onClick={async () => {
-              setCreating(true)
-              try {
-                const built = buildCharacter()
-                if (built.inventory?.length) {
-                  built.inventory = await lookupItems(built.inventory)
-                }
-                onComplete(built)
-              } finally {
-                setCreating(false)
-              }
-            }}
-            className="px-6 py-2.5 bg-amber-600/70 hover:bg-amber-500/80 text-amber-50 rounded-lg text-sm font-bold transition-colors disabled:opacity-50"
-          >
-            {creating ? 'Building…' : 'Create Character ✦'}
-          </button>
-        </div>
-      </Card>
+    <WizardShell step={step} canReach={canReach} onJump={go}>
+      <StepCard
+        title={title}
+        subtitle={subtitle}
+        onBack={back}
+        onNext={isReview ? create : next}
+        nextLabel={isReview ? (creating ? 'Building…' : 'Create Character ✦') : step === 'personality' ? 'Review →' : 'Next →'}
+        nextDisabled={isReview ? creating : !complete[step]}
+        nextHint={hint}
+      >
+        {body}
+      </StepCard>
     </WizardShell>
   )
 }

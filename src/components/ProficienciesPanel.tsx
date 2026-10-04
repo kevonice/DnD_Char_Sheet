@@ -144,12 +144,12 @@ export default function ProficienciesPanel({ char, onChange }: Props) {
             onChange={e => setNewProfName(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && addProficiency()}
             placeholder="Add proficiency…"
-            className="flex-1 bg-amber-900/20 border border-dashed border-amber-800/40 rounded-lg text-amber-200 text-xs px-2 py-1 placeholder-amber-800/50"
+            className="flex-1 min-w-0 bg-amber-900/20 border border-dashed border-amber-800/40 rounded-lg text-amber-200 text-xs px-2 py-1 placeholder-amber-800/50"
           />
           <button
             onClick={addProficiency}
             disabled={!newProfName.trim()}
-            className="px-2.5 py-1 bg-amber-800/30 hover:bg-amber-700/40 border border-amber-700/30 rounded-lg text-amber-400 text-xs disabled:opacity-30 transition-colors"
+            className="shrink-0 px-2.5 py-1 bg-amber-800/30 hover:bg-amber-700/40 border border-amber-700/30 rounded-lg text-amber-400 text-xs disabled:opacity-30 transition-colors"
           >
             Add
           </button>
@@ -207,19 +207,19 @@ export default function ProficienciesPanel({ char, onChange }: Props) {
             onChange={e => setNewLangName(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && addLanguage()}
             placeholder="Language…"
-            className="flex-1 bg-amber-900/20 border border-dashed border-amber-800/40 rounded-lg text-amber-200 text-xs px-2 py-1 placeholder-amber-800/50"
+            className="flex-1 min-w-0 bg-amber-900/20 border border-dashed border-amber-800/40 rounded-lg text-amber-200 text-xs px-2 py-1 placeholder-amber-800/50"
           />
           <input
             value={newLangNotes}
             onChange={e => setNewLangNotes(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && addLanguage()}
             placeholder="notes (optional)"
-            className="w-32 bg-amber-900/20 border border-dashed border-amber-800/40 rounded-lg text-amber-400 text-xs px-2 py-1 placeholder-amber-800/50 italic"
+            className="w-28 min-w-0 bg-amber-900/20 border border-dashed border-amber-800/40 rounded-lg text-amber-400 text-xs px-2 py-1 placeholder-amber-800/50 italic"
           />
           <button
             onClick={addLanguage}
             disabled={!newLangName.trim()}
-            className="px-2.5 py-1 bg-amber-800/30 hover:bg-amber-700/40 border border-amber-700/30 rounded-lg text-amber-400 text-xs disabled:opacity-30 transition-colors"
+            className="shrink-0 px-2.5 py-1 bg-amber-800/30 hover:bg-amber-700/40 border border-amber-700/30 rounded-lg text-amber-400 text-xs disabled:opacity-30 transition-colors"
           >
             Add
           </button>

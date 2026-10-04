@@ -514,25 +514,33 @@ export function fetchArmor():     Promise<InventoryItem[]> { return fetchCategor
 export function fetchGear():      Promise<InventoryItem[]> { return fetchCategory('gear') }
 export function fetchMiscItems(): Promise<InventoryItem[]> { return fetchCategory('misc') }
 
-// Look up a list of item names against the full 5etools database.
-// Returns the best-matched InventoryItem for each name (or the bare placeholder if not found).
+// Look up a list of item names against the full 5etools database and fill in
+// weight, category, stats and description. Exact (case-insensitive) name matches
+// only, preferring the PHB printing: fuzzy matching used to turn "Holy Symbol"
+// into a legendary artifact. Keeps the placeholder's id, quantity and notes; an
+// unmatched item is returned unchanged.
 export async function lookupItems(placeholders: InventoryItem[]): Promise<InventoryItem[]> {
   const [base, magic] = await Promise.all([fetchBaseItems(), fetchMagicItems()])
   const allItems = [
-    ...magic.weapon, ...magic.armor, ...magic.gear, ...magic.misc,
     ...base.weapon,  ...base.armor,  ...base.gear,  ...base.misc,
+    ...magic.weapon, ...magic.armor, ...magic.gear, ...magic.misc,
   ]
+  const byName = (name: string) => {
+    const q = name.toLowerCase()
+    const hits = allItems.filter(it => it.name.toLowerCase() === q)
+    return hits.find(it => it.source === 'PHB') ?? hits[0]
+  }
 
   return placeholders.map(placeholder => {
-    const query = placeholder.name.toLowerCase()
-    // Exact match first, then startsWith, then includes
-    const found =
-      allItems.find(it => it.name.toLowerCase() === query) ??
-      allItems.find(it => it.name.toLowerCase().startsWith(query)) ??
-      allItems.find(it => it.name.toLowerCase().includes(query))
-    if (!found) return placeholder
-    // Give the found item a fresh id so it doesn't collide
-    return { ...found, id: placeholder.id }
+    const found = byName(placeholder.name)
+    if (found) {
+      return { ...found, id: placeholder.id, quantity: placeholder.quantity, equipped: false,
+               notes: placeholder.notes || found.notes }
+    }
+    // Ammunition is sold in bundles: "Arrows" ×20 → one "Arrows (20)".
+    const bundle = placeholder.quantity > 1 ? byName(`${placeholder.name} (${placeholder.quantity})`) : undefined
+    if (bundle) return { ...bundle, id: placeholder.id, quantity: 1, equipped: false, notes: placeholder.notes || bundle.notes }
+    return placeholder
   })
 }
 
