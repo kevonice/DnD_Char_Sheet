@@ -10,6 +10,7 @@ interface Props {
   groups: Grants[]
   picks: Picks
   todo: string[]
+  spellNames: string[]
 }
 
 const SOURCE_TITLE: Record<Grants['source'], string> = { race: 'Race', background: 'Background', class: 'Class' }
@@ -25,7 +26,7 @@ function Stat({ label, value, note }: { label: string; value: React.ReactNode; n
   )
 }
 
-export default function ReviewStep({ preview: c, groups, picks, todo }: Props) {
+export default function ReviewStep({ preview: c, groups, picks, todo, spellNames }: Props) {
   const abilities = c.abilities!
   return (
     <div className="space-y-5">
@@ -47,7 +48,7 @@ export default function ReviewStep({ preview: c, groups, picks, todo }: Props) {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <Stat label="Hit points" value={c.maxHp} note={`${c.hitDice} hit die`} />
+        <Stat label="Hit points" value={c.maxHp} note={`Level ${c.level} · ${c.hitDice} hit dice`} />
         <Stat label="Armor class" value={c.ac} note="Unarmored — equip armor on the sheet" />
         <Stat label="Speed" value={`${c.speed} ft`} />
         <Stat label="Spellcasting" value={c.spellcastingAbility ? ABILITY_LABELS[c.spellcastingAbility] : '—'} />
@@ -94,6 +95,14 @@ export default function ReviewStep({ preview: c, groups, picks, todo }: Props) {
           <p className="text-[11px] text-amber-600/70 mt-1">Trackable class features (Second Wind, Rage…) are added when you create.</p>
         </div>
       </div>
+
+      {spellNames.length > 0 && (
+        <div>
+          <SectionLabel>Spells{c.subclass ? ` · ${c.subclass}` : ''}</SectionLabel>
+          <p className="text-xs text-amber-200/80">{spellNames.join(', ')}</p>
+        </div>
+      )}
+      {!spellNames.length && c.subclass && <p className="text-sm text-amber-300"><span className="text-amber-500/80">Subclass:</span> {c.subclass}</p>}
 
       {(c.personalityTraits || c.ideals || c.bonds || c.flaws) && (
         <div>

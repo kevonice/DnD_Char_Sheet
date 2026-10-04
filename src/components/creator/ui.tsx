@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react'
 
-export type FlowStep = 'name' | 'race' | 'class' | 'background' | 'abilities' | 'proficiencies' | 'personality' | 'review'
+export type FlowStep = 'name' | 'race' | 'class' | 'background' | 'abilities' | 'proficiencies' | 'levels' | 'spells' | 'personality' | 'review'
 
-export const FLOW: FlowStep[] = ['name', 'race', 'class', 'background', 'abilities', 'proficiencies', 'personality', 'review']
+/** Full order; 'levels' and 'spells' are dropped when a character has nothing to choose there. */
+export const FLOW: FlowStep[] = ['name', 'race', 'class', 'background', 'abilities', 'proficiencies', 'levels', 'spells', 'personality', 'review']
 
 export const STEP_LABELS: Record<FlowStep, string> = {
   name: 'Name', race: 'Race', class: 'Class', background: 'Background',
-  abilities: 'Abilities', proficiencies: 'Proficiencies', personality: 'Personality', review: 'Review',
+  abilities: 'Abilities', proficiencies: 'Proficiencies', levels: 'Level & Subclass', spells: 'Spells', personality: 'Personality', review: 'Review',
 }
 
 export function useIsDesktop(): boolean {
@@ -25,13 +26,14 @@ export function useIsDesktop(): boolean {
 
 // ── Page shell with stepper ───────────────────────────────────────────────────
 
-export function WizardShell({ step, canReach, onJump, children }: {
+export function WizardShell({ step, steps = FLOW, canReach, onJump, children }: {
   step: FlowStep | 'landing'
+  steps?: FlowStep[]
   canReach?: (s: FlowStep) => boolean
   onJump?: (s: FlowStep) => void
   children: React.ReactNode
 }) {
-  const idx = step === 'landing' ? -1 : FLOW.indexOf(step)
+  const idx = step === 'landing' ? -1 : steps.indexOf(step)
   const wide = step !== 'landing' && step !== 'name'
   return (
     <div className="min-h-screen bg-[#130e06] flex flex-col items-center px-4 py-6 md:py-10">
@@ -40,7 +42,7 @@ export function WizardShell({ step, canReach, onJump, children }: {
           <>
             {/* Desktop: labelled steps */}
             <ol className="hidden md:flex items-center justify-center gap-1 mb-6 flex-wrap">
-              {FLOW.map((s, i) => {
+              {steps.map((s, i) => {
                 const reachable = canReach?.(s) ?? false
                 const state = i === idx ? 'current' : i < idx ? 'done' : 'todo'
                 return (
@@ -57,7 +59,7 @@ export function WizardShell({ step, canReach, onJump, children }: {
                     >
                       {state === 'done' ? '✓ ' : `${i + 1}. `}{STEP_LABELS[s]}
                     </button>
-                    {i < FLOW.length - 1 && <span className={`w-3 h-px ${i < idx ? 'bg-amber-600/60' : 'bg-amber-900/60'}`} />}
+                    {i < steps.length - 1 && <span className={`w-3 h-px ${i < idx ? 'bg-amber-600/60' : 'bg-amber-900/60'}`} />}
                   </li>
                 )
               })}
@@ -65,11 +67,11 @@ export function WizardShell({ step, canReach, onJump, children }: {
             {/* Mobile: compact progress */}
             <div className="md:hidden mb-4">
               <div className="flex justify-between text-[11px] text-amber-500/80 mb-1.5">
-                <span className="font-bold uppercase tracking-widest">{STEP_LABELS[FLOW[idx]]}</span>
-                <span>Step {idx + 1} of {FLOW.length}</span>
+                <span className="font-bold uppercase tracking-widest">{STEP_LABELS[steps[idx]]}</span>
+                <span>Step {idx + 1} of {steps.length}</span>
               </div>
               <div className="h-1 bg-amber-950 rounded-full overflow-hidden">
-                <div className="h-full bg-amber-500/70 transition-all" style={{ width: `${((idx + 1) / FLOW.length) * 100}%` }} />
+                <div className="h-full bg-amber-500/70 transition-all" style={{ width: `${((idx + 1) / steps.length) * 100}%` }} />
               </div>
             </div>
           </>

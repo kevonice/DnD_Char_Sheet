@@ -241,7 +241,7 @@ export function buildCharacter(i: BuildInput): Partial<Character> {
  * (Second Wind, Rage, Arcane Recovery…). Failures are swallowed — the character
  * is still created, just without the extras.
  */
-export async function finalizeCharacter(built: Partial<Character>, className: string | null): Promise<Partial<Character>> {
+export async function finalizeCharacter(built: Partial<Character>, className: string | null, subclassName = ''): Promise<Partial<Character>> {
   const out = { ...built }
   try {
     if (out.inventory?.length) out.inventory = await lookupItems(out.inventory)
@@ -249,15 +249,26 @@ export async function finalizeCharacter(built: Partial<Character>, className: st
 
   if (!className) return out
   try {
-    const prog = await fetchClassProgression(className, '2014')
-    const level1 = prog?.levels[0]?.features ?? []
+    const level = out.level ?? 1
+    const prog = await fetchClassProgression(className, '2014', subclassName || undefined)
     const asChar = { ...makeDefaultCharacter(), ...out } as Character
-    for (const name of level1) {
-      if (!lookupFeatureMeta(name, className)) continue
-      const desc = prog?.featureMap.get(`${name}|1`)?.description ?? ''
-      const f = buildFeatureForCharacter(name, desc, asChar, className)
+    const add = (name: string, lvl: number, passiveFallback: boolean) => {
+      const desc = prog?.featureMap.get(`${name}|${lvl}`)?.description ?? ''
+      const f = lookupFeatureMeta(name, className) ? buildFeatureForCharacter(name, desc, asChar, className) : null
       if (f?.active) out.activeFeatures = [...(out.activeFeatures ?? []), f.active]
-      if (f?.passive) out.passiveTraits = [...(out.passiveTraits ?? []), f.passive]
+      else if (f?.passive) out.passiveTraits = [...(out.passiveTraits ?? []), f.passive]
+      else if (passiveFallback) out.passiveTraits = [...(out.passiveTraits ?? []), { id: uuid(), name, description: desc }]
+    }
+    const seen = new Set<string>()
+    for (const row of prog?.levels.slice(0, level) ?? []) {
+      // Class features: only ones the metadata table can track (the Class tab lists the rest).
+      for (const name of row.features) if (!seen.has(name)) { seen.add(name); add(name, row.level, false) }
+      // Subclass features always go on the sheet; skip the wrapper named after the subclass itself.
+      for (const name of row.subclassFeatures) {
+        if (seen.has(name) || name === prog?.subclassName) continue
+        seen.add(name)
+        add(name, row.level, true)
+      }
     }
   } catch { /* features can still be added from the Class tab */ }
   return out
