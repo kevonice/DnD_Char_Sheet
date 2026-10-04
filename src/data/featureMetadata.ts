@@ -17,6 +17,12 @@ import { v4 as uuid } from '../uuid'
 // Coverage is v1: resource-based / actionable features for the core classes,
 // prioritising the active features where this metadata actually matters. Passive
 // features are listed as `kind: 'passive'` so the importer routes them correctly.
+//
+// TODO(2024 edition): every value below is the 2014 (PHB/XGE/TCE) rule. The Class
+// tab's edition toggle is not consulted, so XPHB characters get 2014 numbers for
+// features that changed: Second Wind, Channel Divinity (Cleric), Rage, Wild Shape,
+// Bardic Inspiration, Divine Sense. Fix: add optional `uses2024`/`recharge2024`
+// overrides on those entries and pass the toggle into buildFeatureForCharacter().
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type UsesFormula =
