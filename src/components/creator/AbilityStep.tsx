@@ -17,6 +17,9 @@ interface Props {
   picks: Picks
   onPick: (choiceId: string, values: string[]) => void
   className: string | null
+  canFlex: boolean
+  flexible: boolean
+  onFlexible: (v: boolean) => void
 }
 
 const METHODS: Array<{ key: AbilityMethod; label: string; blurb: string }> = [
@@ -30,7 +33,7 @@ const ROW = 'px-3 sm:grid sm:grid-cols-[minmax(0,1fr)_6rem_3rem_3.5rem_3rem] sm:
 const CELLS = 'grid grid-cols-[6rem_3rem_3.5rem_3rem] gap-x-2 items-center sm:contents'
 const fmtMod = (score: number) => { const m = modifier(score); return m >= 0 ? `+${m}` : `${m}` }
 
-export default function AbilityStep({ state, onChange, race, picks, onPick, className }: Props) {
+export default function AbilityStep({ state, onChange, race, picks, onPick, className, canFlex, flexible, onFlexible }: Props) {
   const base = baseScores(state)
   const bonus = racialBonus(race, picks)
   const pitch = className ? CLASS_PITCH[className] : undefined
@@ -188,6 +191,12 @@ export default function AbilityStep({ state, onChange, race, picks, onPick, clas
       {(Object.keys(race.abilityFixed).length > 0 || race.abilityChoices.length > 0) && (
         <div className="rounded-xl border border-purple-800/40 bg-purple-950/20 p-3 space-y-3">
           <SectionLabel>From your race — {race.sourceLabel}</SectionLabel>
+          {canFlex && (
+            <label className="flex items-start gap-2 text-xs text-purple-200/90 cursor-pointer">
+              <input type="checkbox" checked={flexible} onChange={e => onFlexible(e.target.checked)} className="mt-0.5 accent-purple-500" />
+              <span>Move my racial bonuses to other abilities <span className="text-purple-400/70">(Tasha's “Customizing Your Origin” — optional rule, check with your DM)</span></span>
+            </label>
+          )}
           {Object.keys(race.abilityFixed).length > 0 && (
             <p className="text-xs text-purple-200/80">
               Fixed: {Object.entries(race.abilityFixed).map(([k, v]) => `+${v} ${ABILITY_INFO[k as AbilityKey].name}`).join(', ')}
@@ -195,10 +204,12 @@ export default function AbilityStep({ state, onChange, race, picks, onPick, clas
           )}
           {race.abilityChoices.map(ch => {
             const picked = picks[ch.id] ?? []
+            // Separate racial bonuses must land on different abilities.
+            const elsewhere = race.abilityChoices.filter(o => o.id !== ch.id).flatMap(o => picks[o.id] ?? [])
             return (
               <div key={ch.id}>
                 <p className="text-xs text-purple-200/90 mb-1.5">
-                  Choose {ch.count} different abilit{ch.count === 1 ? 'y' : 'ies'} to get +{ch.amount}
+                  {ch.count === 1 ? `Choose an ability to get +${ch.amount}` : `Choose ${ch.count} different abilities to get +${ch.amount}`}
                   <span className="ml-2 text-purple-400/80">{picked.length} / {ch.count}</span>
                 </p>
                 <div className="flex flex-wrap gap-1.5">
@@ -208,7 +219,7 @@ export default function AbilityStep({ state, onChange, race, picks, onPick, clas
                     return (
                       <button
                         key={k}
-                        disabled={!on && full}
+                        disabled={!on && (full || elsewhere.includes(k))}
                         onClick={() => onPick(ch.id, on ? picked.filter(x => x !== k) : [...picked, k])}
                         className={`px-2.5 py-1 rounded-full border text-xs font-bold transition-colors disabled:opacity-30 ${
                           on ? 'bg-purple-600/40 border-purple-400/70 text-purple-50' : 'border-purple-800/50 text-purple-300/80 hover:border-purple-500/60'

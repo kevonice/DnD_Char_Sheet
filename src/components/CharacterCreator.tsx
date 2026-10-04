@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Character } from '../types'
 import {
-  emptyGrants, fetchBackgrounds2014, fetchClasses2014, fetchRaces2014, resolveRace,
+  canFlexBonuses, emptyGrants, fetchBackgrounds2014, fetchClasses2014, fetchRaces2014, resolveRace,
   type BackgroundOption,
 } from '../data/creator2014'
 import {
@@ -63,6 +63,7 @@ export default function CharacterCreator({ onComplete, onManual, onImport }: Pro
   const [raceName, setRaceName] = useState<string | null>(null)
   const [subShort, setSubShort] = useState<string | null>(null)
   const [customRace, setCustomRace] = useState('')
+  const [flexible, setFlexible] = useState(false)
 
   const [classMode, setClassMode] = useState<Mode>('list')
   const [className, setClassName] = useState<string | null>(null)
@@ -85,9 +86,9 @@ export default function CharacterCreator({ onComplete, onManual, onImport }: Pro
   const backgrounds = useLoader(fetchBackgrounds2014, active)
 
   // ── Derived selections ────────────────────────────────────────────────────
-  const race = raceMode === 'list' ? races.data.find(r => r.name === raceName) ?? null : null
+  const race = raceMode === 'list' ? races.data.find(r => r.key === raceName) ?? null : null
   const sub = race?.subraces.find(s => s.short === subShort) ?? null
-  const resolvedRace = race && (race.subraces.length === 0 || sub) ? resolveRace(race, sub) : null
+  const resolvedRace = race && (race.subraces.length === 0 || sub) ? resolveRace(race, sub, flexible) : null
   const cls = classMode === 'list' ? classes.data.find(c => c.name === className) ?? null : null
   const bg = bgMode === 'list' ? backgrounds.data.find(b => b.name === bgName) ?? null : null
 
@@ -230,7 +231,7 @@ export default function CharacterCreator({ onComplete, onManual, onImport }: Pro
           races={races.data} loading={races.loading} error={races.error} onRetry={races.retry}
           mode={raceMode} onMode={m => { setRaceMode(m); clearPicks('race:') }}
           raceName={raceName} subShort={subShort}
-          onPick={n => { if (n !== raceName) { setRaceName(n); setSubShort(null); clearPicks('race:') } }}
+          onPick={n => { if (n !== raceName) { setRaceName(n); setSubShort(null); setFlexible(false); clearPicks('race:') } }}
           onPickSub={s => { setSubShort(s); clearPicks('race:') }}
           customRace={customRace} onCustomRace={setCustomRace}
         />
@@ -286,6 +287,9 @@ export default function CharacterCreator({ onComplete, onManual, onImport }: Pro
           state={ability} onChange={setAbility}
           race={raceGrants} picks={cleanPicks} onPick={setPick}
           className={cls?.name ?? null}
+          canFlex={!!race && race.raw.lineage !== 'VRGR' && canFlexBonuses(race && (race.subraces.length === 0 || sub) ? resolveRace(race, sub).grants : raceGrants)}
+          flexible={flexible}
+          onFlexible={v => { setFlexible(v); clearPicks('race:') }}
         />
       )
       break

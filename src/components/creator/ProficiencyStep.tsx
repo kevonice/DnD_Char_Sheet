@@ -1,4 +1,4 @@
-import type { Choice, Grants } from '../../data/creator2014'
+import { EXOTIC_LANGUAGES, type Choice, type Grants } from '../../data/creator2014'
 import { choiceRemaining, grantedNames, ownedElsewhere, type Picks } from '../../data/creatorBuild'
 import { ABILITY_LABELS, SKILL_ABILITIES } from '../../utils'
 import { FixedRow, SectionLabel } from './ui'
@@ -32,13 +32,14 @@ function ChoicePicker({ choice, groups, picks, onPick }: { choice: Choice; group
         </span>
       </div>
       <div className="flex flex-wrap gap-1.5">
-        {choice.options.map(opt => {
+        {choice.options.map((opt, i) => {
+          const firstExotic = choice.kind === 'language' && EXOTIC_LANGUAGES.includes(opt) && !EXOTIC_LANGUAGES.includes(choice.options[i - 1])
           const on = picked.includes(opt)
           const from = owned.get(opt.toLowerCase())
           const disabled = !on && (!!from || full)
-          return (
+          return (<span key={opt} className="contents">
+            {firstExotic && <span className="basis-full text-[10px] uppercase tracking-widest text-amber-600/70 mt-1">Exotic — usually needs your DM's OK</span>}
             <button
-              key={opt}
               disabled={disabled}
               title={from ? `You already have this from ${from}` : choice.kind === 'skill' ? skillTitle(opt) : undefined}
               onClick={() => onPick(choice.id, on ? picked.filter(p => p !== opt) : [...picked, opt])}
@@ -54,7 +55,7 @@ function ChoicePicker({ choice, groups, picks, onPick }: { choice: Choice; group
                 <span className="ml-1 text-[9px] opacity-60">{SKILL_ABILITIES[opt].toUpperCase()}</span>
               )}
             </button>
-          )
+          </span>)
         })}
       </div>
     </div>

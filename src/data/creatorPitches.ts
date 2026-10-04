@@ -15,7 +15,7 @@ export const ABILITY_INFO: Record<AbilityKey, { name: string; blurb: string }> =
   cha: { name: 'Charisma',     blurb: 'Force of personality: Bard, Paladin, Sorcerer and Warlock magic, Persuasion, Deception.' },
 }
 
-export const RACE_PITCH: Record<string, { tagline: string; goodFor: string }> = {
+export const RACE_PITCH: Record<string, { tagline: string; goodFor?: string }> = {
   Dragonborn: {
     tagline: 'Proud, dragon-blooded people who can breathe fire, frost or lightning depending on their ancestry.',
     goodFor: 'Paladin, Sorcerer, Fighter',
@@ -52,6 +52,39 @@ export const RACE_PITCH: Record<string, { tagline: string; goodFor: string }> = 
     tagline: 'Touched by a fiendish bloodline. You resist fire, know a few spells innately, and attract suspicious looks.',
     goodFor: 'Warlock, Sorcerer, Bard',
   },
+  // ── Volo's Guide / Monsters of the Multiverse / Tasha's ──
+  Aarakocra:   { tagline: 'Bird-folk who can fly from level 1. Amazing mobility, but fragile in tight spaces.', goodFor: 'Ranger, Monk, Rogue' },
+  Aasimar:     { tagline: 'Mortals touched by the heavens: they heal with a touch and can unleash radiant celestial power.', goodFor: 'Paladin, Cleric, Warlock' },
+  Bugbear:     { tagline: 'Big, sneaky goblinoids with long arms that hit from further away and ambush the unwary.', goodFor: 'Rogue, Fighter, Barbarian' },
+  Centaur:     { tagline: 'Half-human, half-horse. Fast, strong, and can charge into enemies.', goodFor: 'Fighter, Ranger, Paladin' },
+  Changeling:  { tagline: 'Shapeshifters who can change their face and voice at will. Perfect for spies and tricksters.', goodFor: 'Bard, Rogue, Warlock' },
+  'Custom Lineage': { tagline: 'Build your own: +2 to any ability, a free feat, and darkvision or an extra skill. Ask your DM for the story.', goodFor: 'Any class' },
+  'Deep Gnome': { tagline: 'Stealthy gnomes from the Underdark who can turn invisible and resist magic.', goodFor: 'Rogue, Wizard, Ranger' },
+  Duergar:     { tagline: 'Grim gray dwarves of the Underdark who can grow large or turn invisible.', goodFor: 'Fighter, Cleric, Warlock' },
+  Eladrin:     { tagline: 'Elves of the Feywild whose mood shifts with the seasons, and who can teleport short distances.', goodFor: 'Any class' },
+  Fairy:       { tagline: 'Tiny fey with butterfly wings. You can fly from level 1 and cast a little innate magic.', goodFor: 'Druid, Bard, Warlock' },
+  Firbolg:     { tagline: 'Gentle forest giants who talk to plants and animals and can briefly turn invisible.', goodFor: 'Druid, Cleric, Ranger' },
+  Genasi:      { tagline: 'People with elemental blood: air, earth, fire or water, each with its own powers.', goodFor: 'Sorcerer, Wizard, Fighter' },
+  Githyanki:   { tagline: 'Astral warriors trained with armor and greatswords, with a touch of psionic magic.', goodFor: 'Fighter, Paladin, Wizard' },
+  Githzerai:   { tagline: 'Disciplined monks of pure mind who resist charm and fear.', goodFor: 'Monk, Wizard, Cleric' },
+  Goblin:      { tagline: 'Small, quick and scrappy. You can dash or hide as a bonus action and hit bigger foes harder.', goodFor: 'Rogue, Ranger, Monk' },
+  Goliath:     { tagline: 'Towering mountain folk who shrug off big hits and laugh at the cold.', goodFor: 'Barbarian, Fighter, Paladin' },
+  Harengon:    { tagline: 'Rabbit-folk with lightning reflexes and a magical hop.', goodFor: 'Rogue, Monk, Ranger' },
+  Hobgoblin:   { tagline: 'Disciplined goblinoids who fight best together and can turn a failed roll around.', goodFor: 'Fighter, Wizard, Paladin' },
+  Kenku:       { tagline: 'Raven-like folk who mimic sounds perfectly and are expert at skills.', goodFor: 'Rogue, Ranger, Monk' },
+  Kobold:      { tagline: 'Small dragon-kin who are clever in a pack and carry a draconic legacy.', goodFor: 'Rogue, Sorcerer, Ranger' },
+  Lizardfolk:  { tagline: 'Cold, practical reptiles with natural armor, a hungry bite and a knack for surviving.', goodFor: 'Druid, Ranger, Barbarian' },
+  Minotaur:    { tagline: 'Bull-headed warriors who gore and shove their way through a fight.', goodFor: 'Barbarian, Fighter, Paladin' },
+  Orc:         { tagline: 'Powerful and relentless: you can dash toward enemies and refuse to go down.', goodFor: 'Barbarian, Fighter' },
+  Satyr:       { tagline: 'Goat-legged fey revellers who resist magic and are born performers.', goodFor: 'Bard, Warlock, Rogue' },
+  'Sea Elf':   { tagline: 'Elves of the oceans who swim fast, breathe water and talk to sea creatures.', goodFor: 'Ranger, Druid, Fighter' },
+  'Shadar-Kai': { tagline: 'Elves from the Shadowfell who teleport through gloom and resist necrotic damage.', goodFor: 'Rogue, Warlock, Fighter' },
+  Shifter:     { tagline: 'Descendants of lycanthropes who briefly take on beastly traits in a fight.', goodFor: 'Barbarian, Ranger, Druid' },
+  Tabaxi:      { tagline: 'Curious cat-folk with claws and bursts of incredible speed.', goodFor: 'Rogue, Monk, Ranger' },
+  Tortle:      { tagline: 'Turtle-folk with a natural shell for armor and a calm, wandering spirit.', goodFor: 'Druid, Monk, Fighter' },
+  Triton:      { tagline: 'Proud guardians of the deep seas who command water and talk to sea creatures.', goodFor: 'Paladin, Fighter, Sorcerer' },
+  'Yuan-Ti':   { tagline: 'Snake-blooded people who shrug off magic and poison.', goodFor: 'Warlock, Sorcerer, Rogue' },
+  'Yuan-ti Pureblood': { tagline: 'Snake-blooded people who shrug off magic and poison.', goodFor: 'Warlock, Sorcerer, Rogue' },
 }
 
 export const CLASS_PITCH: Record<string, {

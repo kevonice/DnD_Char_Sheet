@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { resolveRace, type RaceOption } from '../../data/creator2014'
 import { RACE_PITCH } from '../../data/creatorPitches'
 import { abilityBonusText } from './format'
@@ -22,7 +23,10 @@ function RaceCard({ race }: { race: RaceOption }) {
   const preview = resolveRace(race, null)
   return (
     <>
-      <div className="font-bold text-amber-100">{race.name}</div>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="font-bold text-amber-100">{race.name}</span>
+        <span className="text-[10px] text-amber-600/80 font-mono">{SOURCE_SHORT[race.source]}</span>
+      </div>
       <p className="text-xs text-amber-400/70 mt-0.5 line-clamp-2">{RACE_PITCH[race.name]?.tagline}</p>
       <div className="flex flex-wrap gap-1 mt-1.5">
         {abilityBonusText(preview.grants).map(t => <Badge key={t}>{t}</Badge>)}
@@ -47,6 +51,7 @@ function RaceDetail({ race, subShort, onPickSub }: { race: RaceOption; subShort:
     <div className="space-y-4">
       <div>
         <h3 className="text-xl font-bold text-amber-100">{r.label}</h3>
+        <p className="text-[11px] text-amber-600/80">{SOURCE_LONG[race.source]}</p>
         <div className="flex flex-wrap gap-1 mt-1.5">
           <Badge>{r.size}</Badge>
           <Badge>Speed {r.speed} ft</Badge>
@@ -56,7 +61,7 @@ function RaceDetail({ race, subShort, onPickSub }: { race: RaceOption; subShort:
         {pitch && (
           <>
             <p className="text-sm text-amber-300/80 mt-2">{pitch.tagline}</p>
-            <p className="text-xs text-amber-500/70 mt-1">Often a good fit for: <span className="text-amber-300/80">{pitch.goodFor}</span></p>
+            {pitch.goodFor && <p className="text-xs text-amber-500/70 mt-1">Often a good fit for: <span className="text-amber-300/80">{pitch.goodFor}</span></p>}
           </>
         )}
       </div>
@@ -114,7 +119,17 @@ function RaceDetail({ race, subShort, onPickSub }: { race: RaceOption; subShort:
   )
 }
 
+const SOURCE_SHORT: Record<string, string> = { PHB: 'PHB', VGM: "Volo's", MPMM: 'MPMM', TCE: "Tasha's" }
+const SOURCE_LONG: Record<string, string> = {
+  PHB: "Player's Handbook (2014)",
+  VGM: "Volo's Guide to Monsters",
+  MPMM: 'Mordenkainen Presents: Monsters of the Multiverse',
+  TCE: "Tasha's Cauldron of Everything",
+}
+
 export default function RaceStep(p: Props) {
+  const [source, setSource] = useState<string>('all')
+  const shown = source === 'all' ? p.races : p.races.filter(r => r.source === source)
   return (
     <>
       <ModeToggle mode={p.mode} onChange={p.onMode} />
@@ -133,10 +148,19 @@ export default function RaceStep(p: Props) {
       ) : (
         <>
           <LoadState loading={p.loading} error={p.error} onRetry={p.onRetry} what="races" />
-          {!p.loading && !p.error && (
+          {!p.loading && !p.error && (<>
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {['all', 'PHB', 'VGM', 'MPMM', 'TCE'].map(s => (
+                <button key={s} onClick={() => setSource(s)}
+                  className={`px-2.5 py-1 rounded-full border text-xs font-bold ${source === s ? 'bg-amber-600/30 border-amber-500/70 text-amber-100' : 'border-amber-800/40 text-amber-500/70 hover:text-amber-300'}`}>
+                  {s === 'all' ? 'All books' : SOURCE_SHORT[s]}
+                </button>
+              ))}
+              {source === 'VGM' && <span className="text-[11px] text-amber-600/80 self-center">Most of these were updated in MPMM — ask your DM which version to use.</span>}
+            </div>
             <PickerLayout
-              items={p.races}
-              getKey={r => r.name}
+              items={shown}
+              getKey={r => r.key}
               selectedKey={p.raceName}
               onSelect={p.onPick}
               renderCard={r => <RaceCard race={r} />}
@@ -146,7 +170,7 @@ export default function RaceStep(p: Props) {
                 : `Choose ${r.name}`}
               emptyDetail={<p className="text-sm text-amber-600/70 text-center py-16">Click a race to read about it.</p>}
             />
-          )}
+          </>)}
         </>
       )}
     </>

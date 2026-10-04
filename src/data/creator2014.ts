@@ -15,6 +15,8 @@ import { ALL_SKILLS, ABILITY_KEYS } from '../utils'
 
 const BASE = 'https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/main/data'
 const SRC = 'PHB'
+/** Race sources: PHB, Volo's, Monsters of the Multiverse, Tasha's (Custom Lineage). */
+export const RACE_SOURCES = ['PHB', 'VGM', 'MPMM', 'TCE']
 
 // ── Reference lists (PHB) ─────────────────────────────────────────────────────
 
@@ -151,7 +153,8 @@ interface Bucket { fixed: string[]; choices: Choice[] }
 function categoryOptions(kind: GrantKind, key: string): { options: string[]; noun: [string, string] } | null {
   if (kind === 'skill' && key === 'any') return { options: [...ALL_SKILLS], noun: ['skill', 'skills'] }
   if (kind === 'language') {
-    if (key === 'anyStandard') return { options: STANDARD_LANGUAGES, noun: ['language', 'languages'] }
+    // Standard languages first; exotic ones are offered too (the picker flags them "ask your DM").
+    if (key === 'anyStandard') return { options: [...STANDARD_LANGUAGES, ...EXOTIC_LANGUAGES], noun: ['language', 'languages'] }
     if (key === 'anyExotic')   return { options: EXOTIC_LANGUAGES, noun: ['exotic language', 'exotic languages'] }
     if (key === 'any')         return { options: [...STANDARD_LANGUAGES, ...EXOTIC_LANGUAGES], noun: ['language', 'languages'] }
   }
@@ -366,7 +369,9 @@ export interface SubraceOption {
 }
 
 export interface RaceOption {
+  key: string                   // "Aasimar|MPMM" — names repeat across books
   name: string
+  source: string
   raw: Record<string, unknown>
   size: string
   speed: number
@@ -387,10 +392,35 @@ export interface ResolvedRace {
   grants: Grants
 }
 
-export function resolveRace(race: RaceOption, sub: SubraceOption | null): ResolvedRace {
+/** Fixed racial bonuses that Tasha's "customizing your origin" may move (not +1-to-everything). */
+export function canFlexBonuses(g: Grants): boolean {
+  const n = Object.values(g.abilityFixed).filter(Boolean).length
+  return n > 0 && n < 6
+}
+
+/**
+ * `flexible`: Tasha's optional rule — each fixed racial increase may go to any
+ * ability instead (still different abilities). MPMM races (lineage "VRGR") always
+ * work this way and have no fixed bonuses or languages in the data, so both are
+ * supplied here: +2 to one ability, +1 to another, Common plus one language.
+ */
+export function resolveRace(race: RaceOption, sub: SubraceOption | null, flexible = false): ResolvedRace {
   const subRaw = sub?.raw ?? race.autoSub ?? {}
   const raceParsed = parseEntity(race.raw, 'race')
   const subParsed = parseEntity(subRaw, 'race:sub')
+  if (race.raw.lineage === 'VRGR') {
+    raceParsed.abilityChoices = [
+      { id: 'race:lineage:ability:0', count: 1, from: [...ABILITY_KEYS], amount: 2 },
+      { id: 'race:lineage:ability:1', count: 1, from: [...ABILITY_KEYS], amount: 1 },
+    ]
+    if (!race.raw.languageProficiencies) {
+      raceParsed.language = {
+        fixed: ['Common'],
+        choices: [{ id: 'race:language:0', kind: 'language', count: 1, label: 'Choose 1 language',
+                    options: [...STANDARD_LANGUAGES, ...EXOTIC_LANGUAGES].filter(l => l !== 'Common') }],
+      }
+    }
+  }
 
   // A subrace can overwrite a race field outright (High Elf's languages).
   const overwrite = (subRaw.overwrite ?? {}) as Record<string, boolean>
@@ -406,7 +436,20 @@ export function resolveRace(race: RaceOption, sub: SubraceOption | null): Resolv
     darkvision: typeof subRaw.darkvision === 'number' ? subRaw.darkvision : race.darkvision,
     resist: dedupe([...resistOf(race.raw.resist), ...resistOf(subRaw.resist), ...(sub?.extraResist ?? [])]),
     traits: [...race.traits, ...(sub?.traits ?? [])],
-    grants: toGrants('race', label, [raceParsed, subParsed]),
+    grants: flexible ? flexGrants(toGrants('race', label, [raceParsed, subParsed])) : toGrants('race', label, [raceParsed, subParsed]),
+  }
+}
+
+function flexGrants(g: Grants): Grants {
+  if (!canFlexBonuses(g)) return g
+  const moves = Object.values(g.abilityFixed).filter((v): v is number => !!v).sort((a, b) => b - a)
+  return {
+    ...g,
+    abilityFixed: {},
+    abilityChoices: [
+      ...moves.map((amount, i) => ({ id: `race:flex:ability:${i}`, count: 1, from: [...ABILITY_KEYS], amount })),
+      ...g.abilityChoices,
+    ],
   }
 }
 
@@ -417,15 +460,16 @@ export function fetchRaces2014(): Promise<RaceOption[]> {
   racesPromise = fetch(`${BASE}/races.json`)
     .then(r => r.json())
     .then((json: { race: Record<string, unknown>[]; subrace?: Record<string, unknown>[] }) => {
-      const subs = (json.subrace ?? []).filter(s => s.source === SRC && s.raceSource === SRC)
+      const subs = (json.subrace ?? []).filter(s => RACE_SOURCES.includes(s.source as string))
       return json.race
-        .filter(r => r.source === SRC)
+        .filter(r => RACE_SOURCES.includes(r.source as string) && !r._copy)
         .map((r): RaceOption => {
           const name = r.name as string
-          const mine = subs.filter(s => s.raceName === name)
+          const source = r.source as string
+          const mine = subs.filter(s => s.raceName === name && s.raceSource === source)
           const named = mine.filter(s => typeof s.name === 'string')
           const unnamed = mine.find(s => typeof s.name !== 'string')
-          const sizeCode = Array.isArray(r.size) ? (r.size as string[])[0] : 'M'
+          const sizes = (Array.isArray(r.size) ? r.size as string[] : ['M']).map(c => c === 'S' ? 'Small' : c === 'L' ? 'Large' : 'Medium')
 
           let subraces: SubraceOption[] = named.map(s => ({
             short: s.name as string, raw: s, traits: traitsOf(s.entries), extraResist: [],
@@ -436,7 +480,7 @@ export function fetchRaces2014(): Promise<RaceOption[]> {
           }
           let subraceLabel = 'Subrace'
           // Dragonborn: the real choice is draconic ancestry (a table, not a subrace).
-          if (name === 'Dragonborn') {
+          if (name === 'Dragonborn' && source === 'PHB') {
             subraceLabel = 'Draconic Ancestry'
             subraces = DRACONIC_ANCESTRIES.map(a => ({
               short: a.dragon,
@@ -450,8 +494,8 @@ export function fetchRaces2014(): Promise<RaceOption[]> {
           }
 
           return {
-            name, raw: r,
-            size: sizeCode === 'S' ? 'Small' : 'Medium',
+            key: `${name}|${source}`, name, source, raw: r,
+            size: sizes.join(' or '),
             speed: speedOf(r.speed) ?? 30,
             darkvision: typeof r.darkvision === 'number' ? r.darkvision : undefined,
             traits: traitsOf(r.entries),
@@ -460,7 +504,8 @@ export function fetchRaces2014(): Promise<RaceOption[]> {
             autoSub: subraces.length === 0 ? unnamed : undefined,
           }
         })
-        .sort((a, b) => a.name.localeCompare(b.name))
+        
+        .sort((a, b) => a.name.localeCompare(b.name) || RACE_SOURCES.indexOf(a.source) - RACE_SOURCES.indexOf(b.source))
     })
     .catch(err => { racesPromise = null; throw err })
   return racesPromise
