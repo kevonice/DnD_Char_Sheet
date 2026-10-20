@@ -36,6 +36,8 @@ export interface ClassLevelData {
   preparedFormula?: string       // "<$level$> + <$wis_mod$>"
   slotRows: number[][]           // per level: slots for spell levels 1..n
   pactRows: Array<{ slots: number; slotLevel: number }>  // Warlock only
+  asiLevels: number[]            // levels with an Ability Score Improvement
+  optionalFeatureProgression: unknown[]   // 5etools: Metamagic, Invocations, Pact Boon, Fighting Style
 }
 
 function spellLevelMap(raw: unknown, keyToLevel: (k: string) => number): Record<number, string[]> {
@@ -105,6 +107,11 @@ export function fetchClassLevelData(className: string): Promise<ClassLevelData> 
           preparedFormula: cls.preparedSpells as string | undefined,
           slotRows,
           pactRows,
+          asiLevels: (cls.classFeatures as unknown[])
+            .map(f => String(typeof f === 'string' ? f : (f as Record<string, unknown>).classFeature).split('|'))
+            .filter(p => p[0] === 'Ability Score Improvement')
+            .map(p => Number(p[p.length - 1])),
+          optionalFeatureProgression: (cls.optionalfeatureProgression as unknown[] | undefined) ?? [],
         }
       })
       .catch(err => { levelCache.delete(key); throw err }))
@@ -265,4 +272,24 @@ export function racialSpells(raws: Array<Record<string, unknown> | undefined>): 
   }
   out.fixed = [...new Set(out.fixed)]
   return out
+}
+
+// ── HP and AC modifiers that 5etools only states in prose ────────────────────
+
+/** Extra max HP per character level: Hill Dwarf (Dwarven Toughness), Draconic Bloodline, the Tough feat. */
+export function hpBonusPerLevel(race: string, subclass: string, feats: string[]): number {
+  let n = 0
+  if (/^Dwarf \(Hill\)/i.test(race)) n += 1
+  if (subclass === 'Draconic Bloodline') n += 1
+  if (feats.includes('Tough')) n += 2
+  return n
+}
+
+/** AC without armor: Barbarian/Monk Unarmored Defense, Draconic Resilience; otherwise 10 + DEX. */
+export function unarmoredAC(className: string, subclass: string, abilities: AbilityScores): number {
+  const m = (k: AbilityKey) => modifier(abilities[k])
+  if (/barbarian/i.test(className)) return 10 + m('dex') + m('con')
+  if (/monk/i.test(className)) return 10 + m('dex') + m('wis')
+  if (subclass === 'Draconic Bloodline') return 13 + m('dex')
+  return 10 + m('dex')
 }

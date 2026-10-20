@@ -137,7 +137,7 @@ export function takeShortRest(char: Character): Partial<Character> {
 export function takeLongRest(char: Character): Partial<Character> {
   // Restore all spell slots
   const spellSlots = Object.fromEntries(
-    Object.entries(char.spellSlots).map(([lvl, slot]) => [lvl, { ...slot, used: 0 }])
+    Object.entries(char.spellSlots).map(([lvl, slot]) => [lvl, { ...slot, used: 0, bonus: 0 }])
   ) as Character['spellSlots']
 
   return {

@@ -1,20 +1,28 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { Character, Spell } from '../types'
+import type { AbilityScores, Character, ClassOptionPick, PassiveTrait, Spell } from '../types'
+import { ABILITY_KEYS, ALL_SKILLS } from '../utils'
 import { v4 as uuid } from '../uuid'
 import {
   canFlexBonuses, emptyGrants, fetchBackgrounds2014, fetchClasses2014, fetchRaces2014, resolveRace,
   type BackgroundOption,
 } from '../data/creator2014'
 import {
-  abilityChoicesComplete, addReplacementChoices, buildCharacter, finalizeCharacter,
+  abilityChoicesComplete, addReplacementChoices, buildCharacter, choiceRemaining, finalizeCharacter, grantedNames,
   proficiencyChoicesComplete, racialBonus, sanitizePicks,
   type BuildInput, type Personality, type Picks,
 } from '../data/creatorBuild'
 import { CLASS_LEVEL1_TODO, CLASS_PITCH } from '../data/creatorPitches'
 import {
-  casterInfo, fetchClassLevelData, fetchClassSpellOptions, hitPointsAt, racialSpells, spellsByName, subclassPreparedNames,
+  casterInfo, fetchClassLevelData, hpBonusPerLevel, unarmoredAC, fetchClassSpellOptions, hitPointsAt, racialSpells, spellsByName, subclassPreparedNames,
   type ClassLevelData, type SpellOption,
 } from '../data/creatorLevels'
+import {
+  asiBonus, asiComplete, checkPrereq, emptyAsi, expertiseAllowsThievesTools, expertiseCountAt, fetchFeats,
+  fetchOptionalFeatures, optionSlotsAt, rangerSlotsAt, subclassGrants,
+  type AsiChoice, type FeatOption, type OptionalFeature, type OptionSlot, type PrereqContext,
+} from '../data/classOptions'
+import { AsiPicker, ExpertisePicker, OptionPicker } from './creator/ChoicePickers'
+import { ChoicePicker } from './creator/ProficiencyStep'
 import LevelsStep from './creator/LevelsStep'
 import SpellStep, { type SpellPicks } from './creator/SpellStep'
 import { FLOW, StepCard, WizardShell, type FlowStep } from './creator/ui'
@@ -97,6 +105,12 @@ export default function CharacterCreator({ onComplete, onManual, onImport }: Pro
   const [spellOptions, setSpellOptions] = useState<SpellOption[] | null>(null)
   const [racialOptions, setRacialOptions] = useState<SpellOption[] | null>(null)
   const [spellError, setSpellError] = useState<string | null>(null)
+  const [asiChoices, setAsiChoices] = useState<Record<number, AsiChoice>>({})
+  const [raceFeat, setRaceFeat] = useState<AsiChoice>(emptyAsi('feat'))
+  const [optionPicks, setOptionPicks] = useState<Record<string, string[]>>({})
+  const [expertisePicks, setExpertisePicks] = useState<string[]>([])
+  const [feats, setFeats] = useState<FeatOption[] | null>(null)
+  const [optFeatures, setOptFeatures] = useState<OptionalFeature[] | null>(null)
 
   const active = step !== 'landing'
   const races = useLoader(fetchRaces2014, active)
@@ -114,18 +128,36 @@ export default function CharacterCreator({ onComplete, onManual, onImport }: Pro
   const classLabel = cls?.name ?? (classMode === 'custom' ? customClass.trim() : '')
   const bgLabel = bg?.name ?? (bgMode === 'custom' ? customBg.trim() : '')
 
+  const subObj = levelData?.subclasses.find(x => x.name === subclassName) ?? null
+  const subGrants = subObj ? subclassGrants(subObj.name) : null
   const raceGrants = resolvedRace?.grants ?? emptyGrants('race', raceLabel || 'Custom race')
   const groups = addReplacementChoices([
     raceGrants,
     bg?.grants ?? emptyGrants('background', bgLabel || 'Custom background'),
     cls?.grants ?? emptyGrants('class', classLabel || 'Custom class'),
+    ...(subGrants ? [subGrants] : []),
   ])
   const cleanPicks = sanitizePicks(groups, picks)
   const setPick = (id: string, values: string[]) => setPicks({ ...cleanPicks, [id]: values })
   const clearPicks = (prefix: string) =>
     setPicks(p => Object.fromEntries(Object.entries(p).filter(([k]) => !k.startsWith(prefix))))
 
-  const abilities = finalScores(baseScores(ability), racialBonus(raceGrants, cleanPicks))
+  const abilitiesPreAsi = finalScores(baseScores(ability), racialBonus(raceGrants, cleanPicks))
+
+  // ── Ability Score Improvements & feats (affect everything downstream) ─────
+  const raceHasFeat = !!(race?.raw.feats || sub?.raw.feats)
+  const asiLevels = (levelData?.asiLevels ?? []).filter(l => l <= startLevel)
+  const asiAt = (l: number) => asiChoices[l] ?? emptyAsi()
+  const featChoices = [...(raceHasFeat ? [raceFeat] : []), ...asiLevels.map(asiAt)]
+  const plus = (a: AbilityScores, b: Record<string, number>) =>
+    Object.fromEntries(ABILITY_KEYS.map(k => [k, a[k] + (b[k] ?? 0)])) as unknown as AbilityScores
+  const abilities = plus(abilitiesPreAsi, asiBonus(featChoices, feats ?? []))
+  /** Scores before one particular choice, for the "max 20" cap. */
+  const scoresWithout = (c: AsiChoice) => plus(abilitiesPreAsi, asiBonus(featChoices.filter(x => x !== c), feats ?? []))
+  const needFeats = raceHasFeat || asiLevels.length > 0
+  useEffect(() => {
+    if (needFeats && !feats) fetchFeats().then(setFeats).catch(() => {})
+  }, [needFeats, feats])
 
   // ── Levels, subclass & spells ───────────────────────────────────────────────
   const clsName = cls?.name ?? null
@@ -137,7 +169,6 @@ export default function CharacterCreator({ onComplete, onManual, onImport }: Pro
     return () => { alive = false }
   }, [clsName])
 
-  const subObj = levelData?.subclasses.find(x => x.name === subclassName) ?? null
   const info = levelData ? casterInfo(levelData, startLevel, abilities) : null
   const needsSubclass = levelData ? startLevel >= levelData.subclassLevel : classMode === 'custom' && startLevel >= 3
   const rolls = Array.from({ length: startLevel - 1 }, (_, i) => hpRolls[i] ?? null)
@@ -183,7 +214,49 @@ export default function CharacterCreator({ onComplete, onManual, onImport }: Pro
       && validSpells.spells.length >= Math.min(info!.spells, levelledOpts.length)))
     && (!rs.choice || validSpells.racial.length === 1)
 
-  const steps = FLOW.filter(x => (x !== 'levels' || startLevel > 1 || needsSubclass) && (x !== 'spells' || hasSpells))
+  const pickedSpellOptions = (): Array<{ spell: SpellOption; prepared: boolean }> => [
+    ...cantripOpts.filter(o => validSpells.cantrips.includes(o.key)).map(spell => ({ spell, prepared: true })),
+    ...levelledOpts.filter(o => validSpells.spells.includes(o.key)).map(spell => ({ spell, prepared: info?.mode !== 'spellbook' })),
+    ...(racialOptions ?? []).filter(o => validSpells.racial.includes(o.key)).map(spell => ({ spell, prepared: true })),
+  ]
+
+  // ── Class features: optional features, Ranger picks, Expertise, subclass grants ──
+  const classSlots: OptionSlot[] = levelData ? optionSlotsAt(levelData.optionalFeatureProgression, startLevel) : []
+  const rangerSlots = cls ? rangerSlotsAt(cls.name, startLevel) : []
+  useEffect(() => {
+    if (classSlots.length && !optFeatures) fetchOptionalFeatures().then(setOptFeatures).catch(() => {})
+  }, [classSlots.length, optFeatures])
+  // Pact Boon first: invocation prerequisites depend on it.
+  const slotList = [
+    ...classSlots.map(slot => ({ slot, options: optFeatures ?? [] })),
+    ...rangerSlots,
+  ].sort((a, b) => Number(b.slot.featureTypes.includes('PB')) - Number(a.slot.featureTypes.includes('PB')))
+  const pactKey = (optionPicks['Pact Boon'] ?? [])[0]
+  const prereqCtx: PrereqContext = {
+    className: classLabel, level: startLevel, subclass: subObj?.name ?? '',
+    pact: pactKey ? pactKey.split('|')[0].replace(/^Pact of the /, '') : null,
+    spells: [...pickedSpellOptions().map(x => x.spell.name.toLowerCase()), ...rs.fixed.map(n => n.toLowerCase())],
+  }
+  const eligible = (s: OptionSlot, options: OptionalFeature[]) =>
+    options.filter(o => o.featureTypes.some(t => s.featureTypes.includes(t)) && checkPrereq(o.prerequisite, prereqCtx).ok)
+  const validOptions = (s: OptionSlot, options: OptionalFeature[]) =>
+    (optionPicks[s.name] ?? []).filter(k => eligible(s, options).some(o => o.key === k)).slice(0, s.count)
+  const slotsDone = slotList.every(({ slot, options }) =>
+    validOptions(slot, options).length >= Math.min(slot.count, eligible(slot, options).length) && (options.length > 0 || slot.count === 0))
+
+  const expertiseNeed = cls ? expertiseCountAt(cls.name, startLevel) : 0
+  const proficientSkills = ALL_SKILLS.filter(s => grantedNames(groups, cleanPicks, 'skill').includes(s))
+  const expertiseOptions = [
+    ...proficientSkills,
+    ...(cls && expertiseAllowsThievesTools(cls.name) && grantedNames(groups, cleanPicks, 'tool').includes("Thieves' tools") ? ["Thieves' tools"] : []),
+  ]
+  const expertiseAlready = groups.flatMap(g => g.expertiseSkills ?? [])
+  const validExpertise = expertisePicks.filter(x => expertiseOptions.includes(x) && !expertiseAlready.includes(x)).slice(0, expertiseNeed)
+  const subChoices = subGrants?.choices ?? []
+
+  const hasLevels = startLevel > 1 || needsSubclass || needFeats
+  const hasFeatures = slotList.length > 0 || expertiseNeed > 0 || subChoices.length > 0
+  const steps = FLOW.filter(x => (x !== 'levels' || hasLevels) && (x !== 'spells' || hasSpells) && (x !== 'features' || hasFeatures))
 
   const complete: Record<FlowStep, boolean> = {
     name: true,
@@ -191,9 +264,12 @@ export default function CharacterCreator({ onComplete, onManual, onImport }: Pro
     class: classMode === 'custom' ? !!customClass.trim() : !!cls,
     background: bgMode === 'custom' ? !!customBg.trim() : !!bg,
     abilities: baseComplete(ability) && abilityChoicesComplete(raceGrants, cleanPicks),
-    proficiencies: proficiencyChoicesComplete(groups, cleanPicks),
-    levels: (!needsSubclass || !levelData || !!subObj) && (hpMethod === 'average' || rolls.every(r => r != null)),
+    proficiencies: proficiencyChoicesComplete(groups.filter(g => g.source !== 'subclass'), cleanPicks),
+    levels: (!needsSubclass || !levelData || !!subObj) && (hpMethod === 'average' || rolls.every(r => r != null))
+      && featChoices.every(c => asiComplete(c, feats ?? [])),
     spells: spellsDone,
+    features: slotsDone && validExpertise.length >= Math.min(expertiseNeed, expertiseOptions.length - expertiseAlready.length)
+      && subChoices.every(c => choiceRemaining(c, groups, cleanPicks) === 0),
     personality: true,
     review: true,
   }
@@ -214,22 +290,49 @@ export default function CharacterCreator({ onComplete, onManual, onImport }: Pro
     groups, picks: cleanPicks, abilities, personality, alignment,
   })
 
-  /** Level, subclass, hit points and spell slots on top of the level-1 build. */
+  /** Level, subclass, HP, slots, class options, feats and expertise on top of the level-1 build. */
   function applyLevels(c: Partial<Character>): Partial<Character> {
     const hd = cls?.hitDie ?? customHitDie
+    const traits: PassiveTrait[] = [...(c.passiveTraits ?? [])]
+
+    const classOptions: ClassOptionPick[] = []
+    for (const { slot, options } of slotList) {
+      for (const key of validOptions(slot, options)) {
+        const o = options.find(x => x.key === key)!
+        const isRanger = o.featureTypes[0] === 'RFE' || o.featureTypes[0] === 'RNE'
+        classOptions.push({ featureType: o.featureTypes.find(t => slot.featureTypes.includes(t)) ?? o.featureTypes[0], name: o.name, source: o.source, cost: o.cost })
+        traits.push({ id: uuid(), name: isRanger ? `${slot.name.replace(/ \(.*\)$/, '')}: ${o.name}` : o.name, description: o.description })
+      }
+    }
+
+    const savingThrows = { ...c.savingThrows! }
+    const proficiencyList = [...(c.proficiencyList ?? [])]
+    const chosenFeats: Array<{ name: string; source: string }> = []
+    for (const ch of featChoices.filter(x => x.mode === 'feat')) {
+      const f = (feats ?? []).find(x => x.key === ch.feat)
+      if (!f) continue
+      chosenFeats.push({ name: f.name, source: f.source })
+      traits.push({ id: uuid(), name: f.name, description: f.description })
+      if (f.saveFollowsChoice && ch.featAbility) savingThrows[ch.featAbility] = true
+      for (const a of f.armor) if (!proficiencyList.some(p => p.name === a)) proficiencyList.push({ id: uuid(), name: a, category: 'armor' })
+    }
+
+    const skills = { ...c.skills! }
+    for (const x of validExpertise) {
+      if (skills[x]) skills[x] = { proficient: true, expertise: true }
+      else traits.push({ id: uuid(), name: `Expertise: ${x}`, description: `Double your proficiency bonus for ability checks using ${x}.` })
+    }
+
+    const subclass = subObj?.name ?? customSubclass.trim()
     const maxHp = hitPointsAt(hd, startLevel, abilities.con, hpMethod === 'roll' ? rolls : null)
+      + startLevel * hpBonusPerLevel(raceLabel, subclass, chosenFeats.map(f => f.name))
     return {
-      ...c, level: startLevel, subclass: subObj?.name ?? customSubclass.trim(),
+      ...c, level: startLevel, subclass, ac: unarmoredAC(classLabel, subclass, abilities),
       maxHp, currentHp: maxHp, hitDice: `${startLevel}d${hd}`, maxHitDice: `${startLevel}d${hd}`,
       ...(info && info.maxSpellLevel > 0 ? { spellSlots: info.slots } : {}),
+      skills, savingThrows, proficiencyList, passiveTraits: traits, classOptions, feats: chosenFeats,
     }
   }
-
-  const pickedSpellOptions = (): Array<{ spell: SpellOption; prepared: boolean }> => [
-    ...cantripOpts.filter(o => validSpells.cantrips.includes(o.key)).map(spell => ({ spell, prepared: true })),
-    ...levelledOpts.filter(o => validSpells.spells.includes(o.key)).map(spell => ({ spell, prepared: info?.mode !== 'spellbook' })),
-    ...(racialOptions ?? []).filter(o => validSpells.racial.includes(o.key)).map(spell => ({ spell, prepared: true })),
-  ]
 
   async function create() {
     setCreating(true)
@@ -360,7 +463,7 @@ export default function CharacterCreator({ onComplete, onManual, onImport }: Pro
           classes={classes.data} loading={classes.loading} error={classes.error} onRetry={classes.retry}
           mode={classMode} onMode={m => { setClassMode(m); clearPicks('class:') }}
           className={className}
-          onPick={n => { if (n !== className) { setClassName(n); clearPicks('class:'); setSubclassName(null); setSpellPicks({ cantrips: [], spells: [], racial: [] }) } }}
+          onPick={n => { if (n !== className) { setClassName(n); clearPicks('class:'); clearPicks('subclass:'); setSubclassName(null); setSpellPicks({ cantrips: [], spells: [], racial: [] }); setOptionPicks({}); setExpertisePicks([]) } }}
           customClass={customClass} onCustomClass={setCustomClass}
           customHitDie={customHitDie} onCustomHitDie={setCustomHitDie}
         />
@@ -415,19 +518,74 @@ export default function CharacterCreator({ onComplete, onManual, onImport }: Pro
       break
 
     case 'levels':
-      title = startLevel > 1 ? `Level ${startLevel}: subclass & hit points` : 'Choose your subclass'
+      title = startLevel > 1 ? `Level ${startLevel}: your level-ups` : needsSubclass ? 'Choose your subclass' : 'Choose your feat'
       subtitle = startLevel > 1
         ? `Starting at level ${startLevel}. Your class features up to this level are added automatically when you create.`
-        : `A ${classLabel} picks a subclass right at level 1.`
-      hint = needsSubclass && levelData && !subObj ? 'Pick a subclass' : 'Roll hit points for every level'
+        : needsSubclass ? `A ${classLabel} picks a subclass right at level 1.` : 'Your race gives you a feat: a special talent.'
+      hint = needsSubclass && levelData && !subObj ? 'Pick a subclass'
+        : !featChoices.every(c => asiComplete(c, feats ?? [])) ? 'Finish your ability score / feat choices'
+        : 'Roll hit points for every level'
       body = (
         <LevelsStep
           className={classLabel} level={startLevel} hitDie={cls?.hitDie ?? customHitDie} con={abilities.con}
           data={levelData} subclassName={subclassName}
-          onSubclass={n => setSubclassName(n)}
+          onSubclass={n => { setSubclassName(n); clearPicks('subclass:') }}
           customSubclass={customSubclass} onCustomSubclass={setCustomSubclass}
           hpMethod={hpMethod} onHpMethod={setHpMethod} hpRolls={rolls} onHpRolls={setHpRolls}
-        />
+        >
+          {featChoices.length > 0 && (
+            <div className="space-y-4">
+              {raceHasFeat && (
+                <AsiPicker title={`Feat from your race (${raceLabel})`} choice={raceFeat} onChange={setRaceFeat} featOnly
+                  scores={scoresWithout(raceFeat)} feats={feats}
+                  featCtx={{ abilities: scoresWithout(raceFeat), race: raceLabel, spellcaster: !!cls?.spellcastingAbility, armor: groups.flatMap(g => g.armor) }}
+                  takenFeats={featChoices.filter(c => c !== raceFeat).map(c => c.feat ?? '')} />
+              )}
+              {asiLevels.map(l => {
+                const c = asiAt(l)
+                return (
+                  <AsiPicker key={l} title={`Level ${l}: Ability Score Improvement`} choice={c}
+                    onChange={nc => setAsiChoices(prev => ({ ...prev, [l]: nc }))}
+                    scores={scoresWithout(c)} feats={feats}
+                    featCtx={{ abilities: scoresWithout(c), race: raceLabel, spellcaster: !!cls?.spellcastingAbility, armor: groups.flatMap(g => g.armor) }}
+                    takenFeats={featChoices.filter(x => x !== c).map(x => x.feat ?? '')} />
+                )
+              })}
+            </div>
+          )}
+        </LevelsStep>
+      )
+      break
+
+    case 'features':
+      title = 'Class features'
+      subtitle = `Choices your ${classLabel}${subObj ? ` (${subObj.name})` : ''} makes by level ${startLevel}. Click any option to read it.`
+      hint = 'Finish the highlighted choices'
+      body = (
+        <div className="space-y-4">
+          {classSlots.length > 0 && !optFeatures && <p className="text-amber-600/70 text-sm animate-pulse">Loading options…</p>}
+          {slotList.map(({ slot, options }) => (
+            <OptionPicker key={slot.name} slot={slot} need={Math.min(slot.count, eligible(slot, options).length)}
+              options={options} picked={validOptions(slot, options)} owned={[]} ctx={prereqCtx}
+              onChange={keys => setOptionPicks(p => ({ ...p, [slot.name]: keys }))}
+              intro={slot.featureTypes.includes('MM') ? `Choose ${slot.count}. Each one changes how you cast a spell for a cost in sorcery points, tracked on the Spells tab.`
+                : slot.featureTypes.includes('EI') ? `Choose ${slot.count}. Greyed-out ones need something you don't have yet (a pact, a spell or a higher level).`
+                : undefined} />
+          ))}
+          {expertiseNeed > 0 && (
+            <ExpertisePicker need={Math.min(expertiseNeed, expertiseOptions.length - expertiseAlready.length)}
+              proficient={expertiseOptions} already={expertiseAlready} picked={validExpertise} onChange={setExpertisePicks} />
+          )}
+          {subGrants && subChoices.length > 0 && (
+            <section className="rounded-xl border border-amber-800/30 bg-amber-950/30 p-3 md:p-4 space-y-2">
+              <div className="flex items-baseline gap-2">
+                <span className="text-[10px] uppercase tracking-widest text-amber-600/80 font-bold">From your subclass</span>
+                <span className="text-base font-bold text-amber-100">{subGrants.sourceLabel}</span>
+              </div>
+              {subChoices.map(c => <ChoicePicker key={c.id} choice={c} groups={groups} picks={cleanPicks} onPick={setPick} />)}
+            </section>
+          )}
+        </div>
       )
       break
 
@@ -465,10 +623,10 @@ export default function CharacterCreator({ onComplete, onManual, onImport }: Pro
       const preview = applyLevels(buildCharacter(buildInput()))
       const todo = [
         ...(cls ? CLASS_LEVEL1_TODO[cls.name] ?? [] : [])
-          .filter(t => !(hasSpells && t.includes('Spells tab')) && !(subObj && t.includes('Subclass field'))),
-        ...(resolvedRace?.traits.some(t => t.name === 'Feat') ? ['Choose one feat (Variant Human).'] : []),
-        ...(startLevel > 1 ? [`Look over your level 2–${startLevel} features in the Class tab for any choices (Eldritch Invocations, Metamagic, Fighting Style…). Guided picks for these are coming next.`] : []),
-        ...(startLevel >= 4 ? ['Apply your Ability Score Improvement(s) from level 4 onward (+2 to one score, +1 to two, or a feat).'] : []),
+          .filter(t => !(hasSpells && t.includes('Spells tab')) && !(subObj && t.includes('Subclass field'))
+            && !(slotList.some(s => s.slot.featureTypes.some(ft => ft.startsWith('FS'))) && t.includes('Fighting Style'))
+            && !(expertiseNeed > 0 && t.includes('Expertise')) && !(rangerSlots.length && t.includes('Favored Enemy'))),
+
         ...(preview.inventory ?? [])
           .filter(i => i.name.endsWith('(your choice)'))
           .map(i => `Pick a specific ${i.name.replace(' (your choice)', '').toLowerCase()} for your equipment.`),

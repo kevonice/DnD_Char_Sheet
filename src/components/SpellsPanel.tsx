@@ -5,6 +5,7 @@ import { v4 as uuid } from '../uuid'
 import { fetchSpells, matchesEdition, type Edition } from '../data/fiveEtools'
 import Autocomplete from './Autocomplete'
 import EditionToggle from './EditionToggle'
+import SorceryPanel from './SorceryPanel'
 
 interface Props {
   char: Character
@@ -92,6 +93,8 @@ export default function SpellsPanel({ char, onChange }: Props) {
         </div>
       </div>
 
+      <SorceryPanel char={char} onChange={onChange} />
+
       {/* Spell levels */}
       {SPELL_LEVELS.map(lvl => {
         const spells = spellsByLevel(lvl)
@@ -100,9 +103,14 @@ export default function SpellsPanel({ char, onChange }: Props) {
 
         return (
           <div key={lvl} className="border border-amber-800/30 rounded-lg overflow-hidden">
-            <button
+            {/* A div, not a <button>: the slot pips inside are buttons and can't be nested in one. */}
+            <div
+              role="button"
+              tabIndex={0}
+              aria-expanded={isOpen}
               onClick={() => setOpenLevel(isOpen ? null : lvl)}
-              className="w-full flex items-center justify-between px-3 py-1.5 bg-amber-950/50 hover:bg-amber-900/40 transition-colors"
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpenLevel(isOpen ? null : lvl) } }}
+              className="w-full flex items-center justify-between px-3 py-1.5 bg-amber-950/50 hover:bg-amber-900/40 transition-colors cursor-pointer"
             >
               <span className="text-xs font-bold text-amber-400">
                 {lvl === 0 ? 'Cantrips' : `Level ${lvl}`}
@@ -111,14 +119,18 @@ export default function SpellsPanel({ char, onChange }: Props) {
                 {lvl > 0 && slot && (
                   <div className="flex items-center gap-1 text-xs" onClick={e => e.stopPropagation()}>
                     <span className="text-amber-600/60">Slots:</span>
-                    {Array.from({ length: Math.min(slot.max, 9) }).map((_, i) => (
+                    {/* Bonus pips (Font of Magic slots) come after the normal ones and vanish on a long rest. */}
+                    {Array.from({ length: Math.min(slot.max + (slot.bonus ?? 0), 12) }).map((_, i) => (
                       <button
                         key={i}
+                        title={i >= slot.max ? 'Created with sorcery points; gone after a long rest' : undefined}
                         onClick={() => updateSlot(lvl, 'used', slot.used === i + 1 ? i : i + 1)}
                         className={`w-4 h-4 rounded border text-[8px] transition-colors ${
                           i < slot.used
                             ? 'bg-amber-950/60 border-amber-800/30'
-                            : 'bg-amber-400 border-amber-300/60 shadow-[0_0_4px_rgba(251,191,36,0.35)]'
+                            : i >= slot.max
+                              ? 'bg-fuchsia-400 border-fuchsia-300/60 shadow-[0_0_4px_rgba(232,121,249,0.4)]'
+                              : 'bg-amber-400 border-amber-300/60 shadow-[0_0_4px_rgba(251,191,36,0.35)]'
                         }`}
                       />
                     ))}
@@ -135,7 +147,7 @@ export default function SpellsPanel({ char, onChange }: Props) {
                 <span className="text-amber-600/50 text-xs">{spells.length} spell{spells.length !== 1 ? 's' : ''}</span>
                 <span className="text-amber-600/50">{isOpen ? '▲' : '▼'}</span>
               </div>
-            </button>
+            </div>
 
             {isOpen && (
               <div className="p-2 space-y-1">

@@ -20,6 +20,7 @@ can never overwrite a character saved on the live site.
 | Version | Commit | Notes |
 |---|---|---|
 | live-v1 | `de4fc72` | Guided 2014 creator: races (PHB/Volo's/MPMM/Tasha's), backgrounds, levels 1–20, subclass, spells |
+| beta | (branch head) | Round 2: Level up button, Sorcery Points + Font of Magic + Metamagic, invocations/pact boon/fighting styles, ASI & feats, expertise, subclass proficiencies |
 
 ---
 

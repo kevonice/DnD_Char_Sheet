@@ -19,7 +19,7 @@ interface Props {
 
 const ORD = ['Cantrip', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th']
 
-function SpellList({ title, hint, count, options, picked, onChange, locked }: {
+export function SpellList({ title, hint, count, options, picked, onChange, locked }: {
   title: string
   hint: string
   count: number

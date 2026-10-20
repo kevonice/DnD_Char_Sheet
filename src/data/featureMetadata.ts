@@ -30,6 +30,7 @@ export type UsesFormula =
   | { kind: 'abilityMod'; ability: AbilityKey; min?: number }     // e.g. CHA mod, min 1
   | { kind: 'profBonus' }                                          // = proficiency bonus
   | { kind: 'level'; thresholds: Array<{ min: number; value: number }> } // step by class level
+  | { kind: 'classLevel' }                                         // = class level (Ki, Sorcery Points)
 
 export interface FeatureMeta {
   /** Canonical feature name as it appears in 5etools / the Class tab. */
@@ -37,6 +38,8 @@ export interface FeatureMeta {
   /** Which class this belongs to (lowercase). Used to disambiguate shared names. */
   class: string
   kind: 'active' | 'passive'
+  /** Name of the tracker this feature creates, when it differs ("Font of Magic" → "Sorcery Points"). */
+  trackerName?: string
   // active-only:
   actionType?: ActionType
   recharge?: RechargeType
@@ -54,6 +57,7 @@ export function resolveUses(formula: UsesFormula | undefined, char: Character): 
       const m = modifier(char.abilities[formula.ability])
       return Math.max(formula.min ?? 1, m)
     }
+    case 'classLevel': return char.level
     case 'level': {
       // highest threshold whose `min` <= character level
       let val = 0
@@ -143,7 +147,7 @@ export const FEATURE_META: FeatureMeta[] = [
 
   // ── Monk ──────────────────────────────────────────────────────────────────────
   F({ name: 'Ki', class: 'monk', kind: 'active', actionType: 'special', recharge: 'short',
-      uses: { kind: 'level', thresholds: [{ min: 2, value: 2 }] } }),  // ki points = monk level (≥2); see note
+      uses: { kind: 'classLevel' } }),
   F({ name: 'Flurry of Blows', class: 'monk', kind: 'active', actionType: 'bonus', recharge: 'atwill' }),
 
   // ── Paladin ─────────────────────────────────────────────────────────────────────
@@ -165,9 +169,9 @@ export const FEATURE_META: FeatureMeta[] = [
       uses: { kind: 'fixed', value: 1 } }),
 
   // ── Sorcerer ───────────────────────────────────────────────────────────────────
-  F({ name: 'Sorcery Points', class: 'sorcerer', kind: 'active', actionType: 'special', recharge: 'long',
-      uses: { kind: 'level', thresholds: [{ min: 2, value: 2 }] } }),  // = sorcerer level (≥2); see note
-  F({ name: 'Font of Magic', class: 'sorcerer', kind: 'passive' }),
+  // Font of Magic (level 2) gives the Sorcery Points pool; the Spells tab converts points ↔ slots.
+  F({ name: 'Font of Magic', class: 'sorcerer', kind: 'active', trackerName: 'Sorcery Points',
+      actionType: 'special', recharge: 'long', uses: { kind: 'classLevel' } }),
 
   // ── Artificer ──────────────────────────────────────────────────────────────────
   F({ name: 'Flash of Genius', class: 'artificer', kind: 'active', actionType: 'reaction', recharge: 'long',
@@ -175,19 +179,14 @@ export const FEATURE_META: FeatureMeta[] = [
   F({ name: 'Magic Item Adept', class: 'artificer', kind: 'passive' }),
 ]
 
-// Features whose true `uses` equals the class level itself (can't be expressed as
-// simple thresholds). The importer resolves these against char.level directly.
-const USES_EQUAL_LEVEL = new Set(['ki', 'sorcery points'])
-
 // ── Lookup ──────────────────────────────────────────────────────────────────
 
 export function lookupFeatureMeta(name: string, className?: string): FeatureMeta | null {
   const n = name.trim().toLowerCase()
   const c = className?.trim().toLowerCase()
   // Prefer an exact (name, class) match, then fall back to name-only.
-  const byBoth = FEATURE_META.find(m => m.name.toLowerCase() === n && (!c || m.class === c))
-  if (byBoth) return byBoth
-  return FEATURE_META.find(m => m.name.toLowerCase() === n) ?? null
+  const named = (m: FeatureMeta) => m.name.toLowerCase() === n || m.trackerName?.toLowerCase() === n
+  return FEATURE_META.find(m => named(m) && (!c || m.class === c)) ?? FEATURE_META.find(named) ?? null
 }
 
 // ── Build a sheet entry from metadata ─────────────────────────────────────────
@@ -216,13 +215,12 @@ export function buildFeatureForCharacter(
     return { passive: { id: uuid(), name: meta.name, description } }
   }
 
-  let maxUses = resolveUses(meta.uses, char)
-  if (USES_EQUAL_LEVEL.has(meta.name.toLowerCase())) maxUses = char.level
+  const maxUses = resolveUses(meta.uses, char)
 
   return {
     active: {
       id: uuid(),
-      name: meta.name,
+      name: meta.trackerName ?? meta.name,
       actionType: meta.actionType ?? 'special',
       maxUses,
       usesLeft: maxUses,
@@ -230,4 +228,19 @@ export function buildFeatureForCharacter(
       description,
     },
   }
+}
+
+/**
+ * After a level-up or ability change: recompute max uses of every tracked feature
+ * the table knows (Sorcery Points, Rage, Channel Divinity…). Newly gained uses are
+ * added to what's left; lost ones are removed.
+ */
+export function rescaleFeatures(features: ActiveFeature[], char: Character, className?: string): ActiveFeature[] {
+  return features.map(f => {
+    const meta = lookupFeatureMeta(f.name, className)
+    if (!meta || meta.kind !== 'active' || !meta.uses) return f
+    const maxUses = resolveUses(meta.uses, char)
+    if (maxUses === f.maxUses) return f
+    return { ...f, maxUses, usesLeft: Math.max(0, Math.min(maxUses, f.usesLeft + (maxUses - f.maxUses))) }
+  })
 }

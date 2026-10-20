@@ -13,11 +13,12 @@ const SOURCE_TITLE: Record<Grants['source'], string> = {
   race: 'From your race',
   background: 'From your background',
   class: 'From your class',
+  subclass: 'From your subclass',
 }
 
 const skillTitle = (s: string) => SKILL_ABILITIES[s] ? `Uses ${ABILITY_LABELS[SKILL_ABILITIES[s]]}` : ''
 
-function ChoicePicker({ choice, groups, picks, onPick }: { choice: Choice; groups: Grants[]; picks: Picks; onPick: Props['onPick'] }) {
+export function ChoicePicker({ choice, groups, picks, onPick }: { choice: Choice; groups: Grants[]; picks: Picks; onPick: Props['onPick'] }) {
   const picked = picks[choice.id] ?? []
   const owned = ownedElsewhere(groups, picks, choice.kind, choice.id)
   const remaining = choiceRemaining(choice, groups, picks)
@@ -70,7 +71,8 @@ export default function ProficiencyStep({ groups, picks, onPick }: Props) {
   return (
     <div className="grid md:grid-cols-[minmax(0,1fr)_16rem] gap-4 items-start">
       <div className="space-y-4">
-        {groups.map(g => {
+        {/* Subclass grants are chosen on the Class features step, after the subclass is picked. */}
+        {groups.filter(g => g.source !== 'subclass').map(g => {
           const hasFixed = g.skills.length + g.languages.length + g.tools.length + g.armor.length + g.weapons.length + g.saves.length > 0
           return (
             <section key={g.source} className="rounded-xl border border-amber-800/30 bg-amber-950/30 p-3 md:p-4">

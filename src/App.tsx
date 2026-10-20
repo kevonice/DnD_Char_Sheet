@@ -23,6 +23,7 @@ import ChronicleTab from './components/ChronicleTab'
 import MapsTab from './components/MapsTab'
 import DMMode from './components/DMMode'
 import AppearancePanel, { overrideToTheme } from './components/AppearancePanel'
+import LevelUpModal from './components/LevelUpModal'
 import { themeForClassAndSubclass, themeVars, bgVars, DEFAULT_THEME } from './data/classThemes'
 import { detectChanges } from './changelog'
 
@@ -92,6 +93,7 @@ export default function App() {
     () => !localStorage.getItem(CREATED_KEY)
   )
   const [glyphOpen, setGlyphOpen] = useState(false)
+  const [levelUpOpen, setLevelUpOpen] = useState(false)
   const [dmMode, setDmMode] = useState<boolean>(
     () => new URLSearchParams(window.location.search).has('dm')
   )
@@ -329,6 +331,15 @@ export default function App() {
               </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
+              {char.level < 20 && (
+                <button
+                  onClick={() => setLevelUpOpen(true)}
+                  title={`Level up to ${char.level + 1}`}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-green-700/50 text-green-300/90 hover:bg-green-900/30 hover:border-green-500/60 text-xs font-bold uppercase tracking-widest transition-colors"
+                >
+                  ⬆ Level up
+                </button>
+              )}
               <button
                 onClick={() => update({ inspiration: !char.inspiration })}
                 title="Inspiration"
@@ -425,6 +436,8 @@ export default function App() {
           </div>
         </div>
       </header>
+
+      {levelUpOpen && <LevelUpModal char={char} onApply={update} onClose={() => setLevelUpOpen(false)} />}
 
       {/* ── Tab bar ── */}
       <nav className="border-b border-amber-800/25 bg-amber-950/30">

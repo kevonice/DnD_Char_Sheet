@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from 'react'
 
-export type FlowStep = 'name' | 'race' | 'class' | 'background' | 'abilities' | 'proficiencies' | 'levels' | 'spells' | 'personality' | 'review'
+export type FlowStep = 'name' | 'race' | 'class' | 'background' | 'abilities' | 'proficiencies' | 'levels' | 'spells' | 'features' | 'personality' | 'review'
 
 /** Full order; 'levels' and 'spells' are dropped when a character has nothing to choose there. */
-export const FLOW: FlowStep[] = ['name', 'race', 'class', 'background', 'abilities', 'proficiencies', 'levels', 'spells', 'personality', 'review']
+export const FLOW: FlowStep[] = ['name', 'race', 'class', 'background', 'abilities', 'proficiencies', 'levels', 'spells', 'features', 'personality', 'review']
 
 export const STEP_LABELS: Record<FlowStep, string> = {
   name: 'Name', race: 'Race', class: 'Class', background: 'Background',
-  abilities: 'Abilities', proficiencies: 'Proficiencies', levels: 'Level & Subclass', spells: 'Spells', personality: 'Personality', review: 'Review',
+  abilities: 'Abilities', proficiencies: 'Proficiencies', levels: 'Level-ups', spells: 'Spells', features: 'Class Features', personality: 'Personality', review: 'Review',
 }
 
 export function useIsDesktop(): boolean {

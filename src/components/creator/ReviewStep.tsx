@@ -13,7 +13,7 @@ interface Props {
   spellNames: string[]
 }
 
-const SOURCE_TITLE: Record<Grants['source'], string> = { race: 'Race', background: 'Background', class: 'Class' }
+const SOURCE_TITLE: Record<Grants['source'], string> = { race: 'Race', background: 'Background', class: 'Class', subclass: 'Subclass' }
 const fmtMod = (n: number) => (n >= 0 ? `+${n}` : `${n}`)
 
 function Stat({ label, value, note }: { label: string; value: React.ReactNode; note?: string }) {
@@ -103,6 +103,22 @@ export default function ReviewStep({ preview: c, groups, picks, todo, spellNames
         </div>
       )}
       {!spellNames.length && c.subclass && <p className="text-sm text-amber-300"><span className="text-amber-500/80">Subclass:</span> {c.subclass}</p>}
+
+      {((c.classOptions?.length ?? 0) > 0 || (c.feats?.length ?? 0) > 0) && (
+        <div>
+          <SectionLabel>Class choices &amp; feats</SectionLabel>
+          <div className="flex flex-wrap gap-1">
+            {(c.classOptions ?? []).map(o => (
+              <span key={o.featureType + o.name} className="px-2 py-0.5 rounded-full text-xs bg-amber-800/30 border border-amber-700/40 text-amber-200">
+                {o.name}{o.cost ? <span className="ml-1 text-fuchsia-300/80">{o.cost.includes('-') ? 'spell lvl' : o.cost} SP</span> : null}
+              </span>
+            ))}
+            {(c.feats ?? []).map(f => (
+              <span key={f.name} className="px-2 py-0.5 rounded-full text-xs bg-green-900/30 border border-green-700/40 text-green-200">Feat: {f.name}</span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {(c.personalityTraits || c.ideals || c.bonds || c.flaws) && (
         <div>

@@ -22,7 +22,8 @@ export interface SkillEntry {
 }
 
 export interface SpellSlots {
-  [level: number]: { max: number; used: number }
+  // bonus: temporary slots (Sorcerer's Font of Magic); they vanish on a long rest
+  [level: number]: { max: number; used: number; bonus?: number }
 }
 
 export interface Spell {
@@ -139,6 +140,14 @@ export interface LanguageEntry {
   notes: string  // e.g. "read only", "telepathic"
 }
 
+/** A pick from a class's optional features: Metamagic, Eldritch Invocation, Pact Boon, Fighting Style. */
+export interface ClassOptionPick {
+  featureType: string   // 5etools type: 'MM', 'EI', 'PB', 'FS:F'…
+  name: string
+  source: string
+  cost?: string         // Metamagic sorcery-point cost: '1', '2', '1-9' (= spell level)
+}
+
 export interface PassiveTrait {
   id: string
   name: string
@@ -236,6 +245,10 @@ export interface Character {
   characterGrowth: string
   notes: string            // legacy — migrated on load
   noteTree: NoteNode[]
+
+  // Class choices made in the creator / on level-up
+  classOptions?: ClassOptionPick[]
+  feats?: Array<{ name: string; source: string }>
 
   // Maps
   maps: MapEntry[]

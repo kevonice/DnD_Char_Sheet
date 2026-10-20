@@ -3,7 +3,7 @@
 // which enriches items and adds level-1 class features over the network.
 
 import type {
-  AbilityKey, AbilityScores, Character, InventoryItem, LanguageEntry, PassiveTrait, ProficiencyEntry,
+  AbilityKey, AbilityScores, ActiveFeature, Character, InventoryItem, LanguageEntry, PassiveTrait, ProficiencyEntry,
 } from '../types'
 import { v4 as uuid } from '../uuid'
 import { ABILITY_KEYS, ALL_SKILLS, defaultSavingThrows, defaultSkills, modifier } from '../utils'
@@ -87,7 +87,11 @@ export function proficiencyChoicesComplete(groups: Grants[], picks: Picks): bool
 export function sanitizePicks(groups: Grants[], picks: Picks): Picks {
   const out: Picks = {}
   const taken: Record<GrantKind, Set<string>> = { skill: new Set(), language: new Set(), tool: new Set() }
-  for (const g of groups) for (const k of ['skill', 'language', 'tool'] as GrantKind[]) fixedOf(g, k).forEach(n => taken[k].add(lower(n)))
+  // Subclass grants arrive after the proficiency step, so they never cancel an earlier pick.
+  for (const g of groups) {
+    if (g.source === 'subclass') continue
+    for (const k of ['skill', 'language', 'tool'] as GrantKind[]) fixedOf(g, k).forEach(n => taken[k].add(lower(n)))
+  }
 
   for (const g of groups) {
     for (const c of g.choices) {
@@ -172,6 +176,11 @@ export function buildCharacter(i: BuildInput): Partial<Character> {
   for (const s of grantedNames(groups, picks, 'skill')) {
     const key = ALL_SKILLS.find(k => lower(k) === lower(s))
     if (key) skills[key] = { proficient: true, expertise: false }
+  }
+
+  for (const s of groups.flatMap(g => g.expertiseSkills ?? [])) {
+    const key = ALL_SKILLS.find(k => lower(k) === lower(s))
+    if (key) skills[key] = { proficient: true, expertise: true }
   }
 
   const savingThrows = defaultSavingThrows()
@@ -271,5 +280,31 @@ export async function finalizeCharacter(built: Partial<Character>, className: st
       }
     }
   } catch { /* features can still be added from the Class tab */ }
+  return out
+}
+
+/**
+ * Features gained at exactly `level`: class features the metadata table tracks
+ * (Action Surge, Font of Magic → Sorcery Points…) and every subclass feature
+ * (as a passive trait unless trackable). Used by the sheet's Level-up screen.
+ */
+export async function featuresGainedAt(
+  className: string, subclassName: string, level: number, char: Character,
+): Promise<{ active: ActiveFeature[]; passive: PassiveTrait[]; names: string[] }> {
+  const out = { active: [] as ActiveFeature[], passive: [] as PassiveTrait[], names: [] as string[] }
+  const prog = await fetchClassProgression(className, '2014', subclassName || undefined)
+  const row = prog?.levels[level - 1]
+  if (!prog || !row) return out
+  const have = new Set([...char.activeFeatures.map(f => f.name), ...char.passiveTraits.map(t => t.name)])
+  const add = (name: string, passiveFallback: boolean) => {
+    const desc = prog.featureMap.get(`${name}|${level}`)?.description ?? ''
+    out.names.push(name)
+    const f = lookupFeatureMeta(name, className) ? buildFeatureForCharacter(name, desc, char, className) : null
+    if (f?.active && !have.has(f.active.name)) out.active.push(f.active)
+    else if (f?.passive && !have.has(f.passive.name)) out.passive.push(f.passive)
+    else if (!f && passiveFallback && !have.has(name)) out.passive.push({ id: uuid(), name, description: desc })
+  }
+  for (const n of row.features) add(n, false)
+  for (const n of row.subclassFeatures) if (n !== prog.subclassName) add(n, true)
   return out
 }

@@ -53,7 +53,7 @@ export const DRACONIC_ANCESTRIES = [
 // ── Grant model ───────────────────────────────────────────────────────────────
 
 export type GrantKind = 'skill' | 'language' | 'tool'
-export type GrantSource = 'race' | 'class' | 'background'
+export type GrantSource = 'race' | 'class' | 'background' | 'subclass'
 
 export interface Choice {
   id: string          // stable key for the player's picks, e.g. "class:skill:0"
@@ -82,6 +82,7 @@ export interface Grants {
   weapons: string[]
   saves: AbilityKey[]
   choices: Choice[]
+  expertiseSkills?: string[]                  // skills granted with expertise (Scout)
 }
 
 export interface Trait { name: string; text: string }
@@ -97,7 +98,7 @@ export function stripTags(text: string): string {
     .replace(/\{@\w+\}/g, '')
 }
 
-function flatten(entries: unknown, depth = 0): string {
+export function flatten(entries: unknown, depth = 0): string {
   if (depth > 5 || entries == null) return ''
   if (typeof entries === 'string') return stripTags(entries)
   if (Array.isArray(entries)) return entries.map(e => flatten(e, depth + 1)).filter(Boolean).join('\n')

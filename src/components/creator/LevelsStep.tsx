@@ -19,13 +19,15 @@ interface Props {
   onHpMethod: (m: 'average' | 'roll') => void
   hpRolls: Array<number | null>        // die result for levels 2..N
   onHpRolls: (r: Array<number | null>) => void
+  children?: React.ReactNode          // ASI / feat pickers, shown between subclass and HP
+  showHp?: boolean                    // false on the sheet's Level-up screen (it has its own)
 }
 
 const fmt = (n: number) => (n >= 0 ? `+${n}` : `${n}`)
 const titleCase = (s: string) => s.replace(/\b\w/g, c => c.toUpperCase())
 
 /** Subclass features the character would have by `level`, fetched lazily. */
-function SubclassFeatures({ className, sub, level }: { className: string; sub: SubclassOption; level: number }) {
+export function SubclassFeatures({ className, sub, level }: { className: string; sub: SubclassOption; level: number }) {
   const [features, setFeatures] = useState<ClassFeatureDesc[] | null>(null)
   useEffect(() => {
     let alive = true
@@ -127,7 +129,9 @@ export default function LevelsStep(p: Props) {
         </section>
       )}
 
-      {p.level > 1 && (
+      {p.children}
+
+      {p.level > 1 && p.showHp !== false && (
         <section className="rounded-xl border border-amber-800/30 bg-amber-950/30 p-3 md:p-4">
           <SectionLabel>Hit points</SectionLabel>
           <p className="text-xs text-amber-400/70 mb-2">
