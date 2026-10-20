@@ -1,3 +1,28 @@
+# D&D 5e Character Sheet
+
+Live: https://kevonice.github.io/DnD_Char_Sheet/ · Beta preview: https://kevonice.github.io/DnD_Char_Sheet/beta/
+
+## Releases
+
+The site only changes when a deploy command runs; commits alone never touch it.
+
+| Command | Publishes to | Use it for |
+|---|---|---|
+| `npm run deploy:beta` | `/DnD_Char_Sheet/beta/` | Trying new work before players see it |
+| `npm run deploy` | `/DnD_Char_Sheet/` | Shipping to players (this also removes the beta folder) |
+
+The beta build keeps its own save data (every localStorage key and the map
+database are prefixed `beta:`) and shows a "BETA preview" badge, so testing it
+can never overwrite a character saved on the live site.
+
+**Rolling back:** check out the commit of the version you want and run `npm run deploy`.
+
+| Version | Commit | Notes |
+|---|---|---|
+| live-v1 | `de4fc72` | Guided 2014 creator: races (PHB/Volo's/MPMM/Tasha's), backgrounds, levels 1–20, subclass, spells |
+
+---
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.

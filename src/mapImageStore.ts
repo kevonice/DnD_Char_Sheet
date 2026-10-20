@@ -1,5 +1,7 @@
 // IndexedDB storage for map images — no size limit like localStorage
-const DB_NAME = 'dnd5e_maps'
+import { STORAGE_PREFIX } from './storageScope'
+
+const DB_NAME = `${STORAGE_PREFIX}dnd5e_maps`
 const STORE = 'images'
 const DB_VERSION = 1
 
