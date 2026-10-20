@@ -21,7 +21,7 @@ can never overwrite a character saved on the live site.
 |---|---|---|
 | live-v1 | `de4fc72` | Guided 2014 creator: races (PHB/Volo's/MPMM/Tasha's), backgrounds, levels 1–20, subclass, spells |
 | live-v2 | `dd2f4b3` | Round 2: Level up button, Sorcery Points + Font of Magic + Metamagic, invocations/pact boon/fighting styles, ASI & feats, expertise, subclass proficiencies |
-| beta | (branch head) | DM Mode: multiple campaigns, compare board, session snapshots with change summaries, backup/restore |
+| live-v3 | `61f0090` | DM Mode: multiple campaigns, compare board, session snapshots with change summaries, backup/restore |
 
 ---
 
